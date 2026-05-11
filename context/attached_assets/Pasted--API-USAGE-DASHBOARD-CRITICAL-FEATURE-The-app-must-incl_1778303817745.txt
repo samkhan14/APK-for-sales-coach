@@ -1,0 +1,111 @@
+# API USAGE DASHBOARD (CRITICAL FEATURE)
+
+The app must include a dedicated "API Usage Dashboard" screen inside the mobile app.
+
+This screen shows real-time usage tracking for all AI providers used in the system.
+
+---
+
+## PURPOSE
+
+Allow users to:
+- See how much free API quota has been used
+- Understand which AI provider is currently active
+- Know when free tier limits will reset
+- Avoid unexpected API failures during practice
+
+---
+
+## TRACKING SYSTEM
+
+The system must track usage for each provider separately:
+
+### 1. Google Gemini API
+- Requests used today
+- Daily limit estimation
+- Reset time (based on API policy)
+
+### 2. Groq API
+- Token usage (if available)
+- Request count
+- Rate limit status
+
+### 3. OpenRouter API
+- Model-wise usage tracking
+- Remaining credits (if applicable)
+
+---
+
+## DASHBOARD UI REQUIREMENTS
+
+Mobile screen must include:
+
+- Clean usage cards for each provider
+- Progress bars showing quota usage
+- Status indicators:
+  - GREEN = available
+  - YELLOW = nearing limit
+  - RED = exhausted
+
+- Last updated timestamp
+- Auto-refresh every few minutes
+
+---
+
+## EXAMPLE UI BEHAVIOR
+
+Gemini API:
+- Used: 120 / 200 requests today
+- Status: ACTIVE
+- Reset: In 14 hours
+
+Groq API:
+- Used: 45 / 100 requests
+- Status: ACTIVE
+
+OpenRouter:
+- Used: 0 / limited free tier
+- Status: STANDBY
+
+---
+
+## SMART FALLBACK INDICATOR
+
+Show which API is currently being used:
+
+Example:
+- "Currently using: Gemini API"
+- "Switched to Groq due to rate limit"
+
+---
+
+## AUTO RESET LOGIC (DISPLAY ONLY)
+
+The system must show estimated reset times based on:
+- API provider rules
+- local time zone (user device time)
+- daily quota cycles
+
+No need to control reset, only display information.
+
+---
+
+## PERFORMANCE OPTIMIZATION
+
+- Cache usage data locally
+- Sync usage stats periodically
+- Avoid extra API calls for dashboard refresh
+
+---
+
+## BONUS INSIGHT FEATURE
+
+Add a "Smart Recommendation Panel":
+
+- Suggest best API currently (based on load)
+Example:
+  "Groq is currently fastest and less loaded"
+
+---
+
+END OF FEATURE

@@ -1,0 +1,251 @@
+Build a production-grade MOBILE AI Voice Sales Practice Application for Android (React Native Expo preferred).
+
+This is NOT a web app.
+
+The goal is to simulate realistic cold calling and sales conversations where users practice pitching web development, AI automation, and SaaS services to real-world customers.
+
+The app must feel like a live phone call with human-like conversation behavior.
+
+---
+
+# CORE PURPOSE
+
+The app helps users improve:
+- Cold calling confidence
+- Sales pitch structure
+- Objection handling
+- Real business conversation skills
+- English speaking fluency (natural, not perfect grammar)
+
+---
+
+# TECH STACK (MOBILE ONLY)
+
+Frontend:
+- React Native (Expo)
+- TypeScript
+- Tailwind (NativeWind)
+- Light/Dark mode support
+- Fully mobile optimized UI
+
+Backend:
+- Node.js + Express (optional but recommended for AI routing)
+- Modular architecture following SOLID principles
+
+Database:
+- SQLite (local mobile storage OR backend SQLite)
+- Optional Supabase sync later
+
+AI Layer (Multi Provider System):
+- Google Gemini API (primary)
+- Groq API (fast fallback)
+- OpenRouter API (backup)
+
+Voice System:
+- Android Speech-to-Text (primary)
+- Expo Speech / native TTS (text-to-speech)
+
+---
+
+# APP CORE IDEA
+
+This is a REALISTIC AI CUSTOMER SIMULATOR.
+
+The AI behaves like:
+- business owners
+- startup founders
+- agency clients
+- restaurant owners
+- skeptical decision makers
+
+It simulates real phone calls with objections, interruptions, and emotional responses.
+
+---
+
+# CONVERSATION ENGINE RULES
+
+AI must:
+- behave like a real human on a phone call
+- avoid robotic or assistant-style answers
+- mix short + medium-length responses naturally
+- sometimes explain business context (budget, team, needs, issues)
+- use real-world sales behavior
+- interrupt or challenge user when needed
+- show hesitation or interest realistically
+
+---
+
+# CRITICAL FEATURE: DATABASE KNOWLEDGE BASE
+
+Create a structured local database with at least:
+
+## 50+ OBJECTIONS (MANDATORY)
+
+Each objection must include:
+- scenario
+- customer message
+- expected AI response (mid-length, realistic)
+- follow-up variation
+
+Examples:
+
+- "We already have a developer"
+- "Not interested right now"
+- "Send me email"
+- "Too expensive"
+- "We are happy with current system"
+- "We don’t trust freelancers"
+- "We are not hiring right now"
+- "We need to think about it"
+- "Who are you exactly?"
+
+---
+
+## 50+ SALES SCENARIOS
+
+Include structured scenarios like:
+
+- Cold calling web development services
+- Selling SaaS automation tools
+- AI automation for businesses
+- Lead generation services
+- Appointment booking services
+- Website redesign pitch
+- CRM automation pitch
+
+---
+
+## CUSTOMER PERSONALITY SYSTEM
+
+Randomly assign each session:
+
+- Rude business owner
+- Busy entrepreneur
+- Friendly startup founder
+- Skeptical manager
+- Price-sensitive client
+- Highly technical CTO
+- Non-technical small business owner
+
+Each personality changes:
+- tone
+- response length
+- objections style
+- decision behavior
+
+---
+
+# VOICE CONVERSATION FLOW
+
+1. User speaks (speech-to-text)
+2. System processes intent
+3. AI generates response
+4. Response is converted to voice automatically
+5. Conversation continues like real call
+
+Latency must be minimal (<2 seconds preferred).
+
+---
+
+# AI ROUTING SYSTEM
+
+Implement fallback logic:
+
+1. Try Gemini API first
+2. If fail → Groq API
+3. If fail → OpenRouter API
+4. If all fail → use local DB scripted responses
+
+---
+
+# SALES DOMAIN CONTEXT
+
+User is a:
+- Web Developer
+- SaaS Builder
+- AI Automation Service Provider
+
+So AI customers must react to:
+- websites
+- web applications
+- AI automation services
+- SaaS tools
+- pricing proposals
+
+---
+
+# EXAMPLE CUSTOMER BEHAVIOR
+
+Customer responses should feel natural:
+
+GOOD:
+"We already have someone handling our website, but honestly it’s quite slow and outdated."
+
+BAD:
+"We appreciate your proposal and will review it later."
+
+---
+
+# UI/UX REQUIREMENTS (MOBILE FIRST)
+
+- Clean modern SaaS mobile UI
+- Light & Dark mode toggle
+- Home dashboard:
+  - Start Practice Call button (primary CTA)
+  - Scenario selection cards
+- Live call screen:
+  - WhatsApp-style call UI
+  - Mic button
+  - AI avatar/customer indicator
+- Conversation transcript view
+- Performance analytics screen
+
+---
+
+# FEEDBACK SYSTEM (VERY IMPORTANT)
+
+After each call generate:
+
+- Confidence score (1–10)
+- Fluency score
+- Sales effectiveness score
+- Weak points:
+  - hesitation
+  - grammar
+  - weak pitch
+- Suggested improved responses
+- Better closing statement
+
+---
+
+# PERFORMANCE REQUIREMENTS
+
+- Optimized API usage (no unnecessary calls)
+- Response caching for repeated objections
+- Lightweight mobile performance
+- Clean modular architecture (SOLID principles)
+
+---
+
+# BONUS FEATURES (IF POSSIBLE)
+
+- Daily practice streak
+- Skill progression system
+- Difficulty levels (easy / medium / hard clients)
+- Replay past conversations
+- Highlight weak sentences in transcript
+
+---
+
+# FINAL OUTPUT
+
+Generate a fully working MOBILE APP with:
+- React Native Expo frontend
+- Voice interaction system
+- AI router backend
+- Prebuilt 50+ objections database
+- Scenario system
+- Feedback engine
+- Clean scalable architecture
+
+Focus on real usability and production-quality structure, not dummy UI.
