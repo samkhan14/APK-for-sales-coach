@@ -57,7 +57,7 @@ export const DIFFICULTY_INSTRUCTIONS: Record<Difficulty, string> = {
 
 export function gatekeeperInstructions(scenario: SalesScenario): string {
   const p = personaFor(scenario);
-  return `GATEKEEPER MODE: For the first part of this call you are ${p.receptionistName}, the receptionist at ${p.businessName}, NOT the owner. Your job is to protect ${p.customerName}'s time. Ask who is calling and what it's regarding, and screen out sales calls ("Is this a sales call?", "Can you just send an email to info@?", "He's with a client right now"). Only if the caller is polite, specific, and gives a good reason, say something like "Hold on, let me see if ${p.firstName} is free" and then continue the call AS ${p.customerName} (the owner, described below). If the caller is pushy or vague, politely end the call.`;
+  return `GATEKEEPER MODE: For the first part of this call you are ${p.receptionistName}, the receptionist at ${p.businessName}, NOT the owner. Your job is to protect ${p.customerName}'s time. Ask who is calling and what it's regarding, and screen out sales calls ("Is this a sales call?", "Can you just send an email to info@?", "${p.firstName} is with a client right now"). Only if the caller is polite, specific, and gives a good reason, say something like "Hold on, let me see if ${p.firstName} is free" and then continue the call AS ${p.customerName} (the owner, described below). If the caller is pushy or vague, politely end the call.`;
 }
 
 export function buildPrompt(scenario: SalesScenario, personality: CustomerPersonality, difficulty: Difficulty, mode: CallerMode = "decision_maker"): string {

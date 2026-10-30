@@ -31,6 +31,7 @@ export function useVoiceCall(opts: Options) {
   const [phase, setPhase] = useState<VoicePhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<LatencyStats>(new LatencyTracker().snapshot);
+  const [notice, setNotice] = useState<string | null>(null);
   const [partial, setPartial] = useState<{ role: "user" | "assistant"; text: string } | null>(null);
 
   const optsRef = useRef(opts);
@@ -53,20 +54,39 @@ export function useVoiceCall(opts: Options) {
   const start = useCallback(async () => {
     if (cleanup.current) return;
     setError(null);
+    setNotice(null);
     setPhase("connecting");
     tracker.current = new LatencyTracker();
     refreshStats();
-    // Lazy import so the native module is only touched when the flag is on.
-    const io = await import("@/services/voice/audioIO");
+    let playerForCleanup: { close: () => Promise<void> } | null = null;
     try {
+      // Lazy import so the native module is only touched when the flag is on.
+      let io: typeof import("@/services/voice/audioIO");
+      try {
+        io = await import("@/services/voice/audioIO");
+      } catch {
+        throw new Error("Voice needs the installed app build, not Expo Go.");
+      }
       if (!(await io.ensureMicPermission())) throw new Error("Microphone permission denied");
+      // Live mode: get the token BEFORE creating any audio objects. On failure fall back to
+      // chained mode once (no retry loop).
+      let mode = optsRef.current.mode;
+      let tok: Awaited<ReturnType<typeof fetchLiveToken>> | null = null;
+      if (mode === "live") {
+        try {
+          tok = await fetchLiveToken();
+        } catch {
+          mode = "chained";
+          setNotice("Live voice unavailable, switched to Fallback voice for this call.");
+        }
+      }
       const player = new io.PcmPlayer();
+      playerForCleanup = player;
       const mic = new io.MicStream();
       const vad = new EnergyVad({ silenceMs: VAD_SILENCE_MS });
       const echoVad = new EnergyVad({ threshold: 0.06, silenceMs: VAD_SILENCE_MS }); // TODO tune: barge-in while AI talks
 
-      if (optsRef.current.mode === "live") {
-        const tok = await fetchLiveToken();
+      if (mode === "live" && tok) {
         let awaitingFirstAudio = true;
         const session = new GeminiLiveSession({
           token: tok.token,
@@ -171,11 +191,13 @@ export function useVoiceCall(opts: Options) {
       }
       setPhase(p => (p === "connecting" ? "listening" : p));
     } catch (e) {
+      // Release audio resources if setup failed after the player was created.
+      if (!cleanup.current && playerForCleanup) await playerForCleanup.close().catch(() => {});
       setError((e as Error).message);
       setPhase("error");
       cleanup.current = null;
     }
   }, [stop]);
 
-  return { phase, error, stats, partial, start, stop, active: phase !== "idle" && phase !== "error" };
+  return { phase, error, notice, stats, partial, start, stop, active: phase !== "idle" && phase !== "error" };
 }

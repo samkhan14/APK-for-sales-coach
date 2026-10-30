@@ -46,3 +46,17 @@ describe("F4/F6/F7 content", () => {
     expect(buildPrompt(dentist, p, "easy")).not.toEqual(buildPrompt(dentist, p, "hard"));
   });
 });
+
+import { gatekeeperInstructions } from "@/services/callSetup";
+describe("gatekeeper wording is gender-neutral", () => {
+  test("female owner personas get no He's", () => {
+    const all = [...SCENARIOS, ...US_SCENARIOS];
+    const female = all.filter(s => /Karen Miller|Rosa Alvarez|Ashley Brooks/.test(personaFor(s).customerName));
+    expect(female.length).toBeGreaterThan(0);
+    for (const s of female) {
+      const g = gatekeeperInstructions(s);
+      expect(g).not.toMatch(/\bHe's\b/);
+      expect(g).toContain(`${personaFor(s).firstName} is with a client`);
+    }
+  });
+});

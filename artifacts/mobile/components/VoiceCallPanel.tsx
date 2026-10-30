@@ -53,6 +53,7 @@ export function VoiceCallPanel(props: Props) {
           {v.partial.role === "user" ? "You: " : "Customer: "}{v.partial.text}
         </Text>
       ) : null}
+      {v.notice ? <Text style={[styles.partial, { color: colors.mutedForeground }]}>{v.notice}</Text> : null}
       {v.error ? <Text style={[styles.err, { color: colors.destructive }]}>{v.error}</Text> : null}
       {props.debug ? (
         <View style={[styles.debug, { borderColor: colors.border }]}>

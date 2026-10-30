@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  appendRecord, DEFAULT_SETTINGS, nextStreak, safeParse, validateFavorites, validateHistory,
+  appendRecord, corruptBackupKey, createWriteQueue, DEFAULT_SETTINGS, nextStreak, safeParse, validateFavorites, validateHistory,
   validateSettings, validateStreak, type AppSettings, type VoiceMode,
 } from "@/services/storage";
 
@@ -33,6 +33,7 @@ interface AppState {
   voiceDebug: boolean;
   /** true when some stored data was corrupt at startup and was reset to defaults (I10). */
   storageRecovered: boolean;
+  dismissStorageRecovered: () => void;
   setVoiceMode: (m: VoiceMode) => Promise<void>;
   setVoiceDebug: (on: boolean) => Promise<void>;
   addCallRecord: (record: CallRecord) => Promise<void>;
@@ -62,6 +63,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const historyRef = useRef<CallRecord[]>([]);
   const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
   const streakRef = useRef<{ streak: number; lastDate: string | null }>({ streak: 0, lastDate: null });
+  // All AsyncStorage writes go through one queue so a slow older write can't land after a newer one.
+  const writeQueue = useRef(createWriteQueue()).current;
+  const write = (key: string, value: unknown) => writeQueue(() => AsyncStorage.setItem(key, JSON.stringify(value)));
 
   useEffect(() => {
     loadData().catch(() => setStorageRecovered(true));
@@ -98,11 +102,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFavoritePhraseIds(fv.value.phrases);
     setFavoriteScriptIds(fv.value.scripts);
 
+    // Keep the unreadable blob under "<key>.corrupt" (one per key) before resetting to defaults.
     const resets: Promise<void>[] = [];
-    if (h.corrupted) resets.push(AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(h.value)));
-    if (st.corrupted) resets.push(AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(st.value)));
-    if (sk.corrupted) resets.push(AsyncStorage.setItem(STREAK_KEY, JSON.stringify(sk.value)));
-    if (fv.corrupted) resets.push(AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(fv.value)));
+    const reset = (key: string, raw: string | null | undefined, value: unknown) =>
+      resets.push(writeQueue(async () => {
+        if (raw != null) await AsyncStorage.setItem(corruptBackupKey(key), raw);
+        await AsyncStorage.setItem(key, JSON.stringify(value));
+      }));
+    if (h.corrupted) reset(HISTORY_KEY, historyRaw, h.value);
+    if (st.corrupted) reset(SETTINGS_KEY, settingsRaw, st.value);
+    if (sk.corrupted) reset(STREAK_KEY, streakRaw, sk.value);
+    if (fv.corrupted) reset(FAVORITES_KEY, favRaw, fv.value);
     if (resets.length) {
       setStorageRecovered(true);
       await Promise.all(resets).catch(() => {});
@@ -110,7 +120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function saveFavorites(phrases: string[], scripts: string[]) {
-    await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify({ phrases, scripts }));
+    await write(FAVORITES_KEY, { phrases, scripts });
   }
 
   async function toggleFavoritePhrase(id: string) {
@@ -133,7 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = appendRecord(historyRef.current, record);
     historyRef.current = updated;
     setCallHistory(updated);
-    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    await write(HISTORY_KEY, updated);
 
     const cur = streakRef.current;
     const next = nextStreak(cur.streak, cur.lastDate);
@@ -141,7 +151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       streakRef.current = next;
       setStreak(next.streak);
       setLastPracticeDate(next.lastDate);
-      await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(next));
+      await write(STREAK_KEY, next);
     }
   }
 
@@ -149,7 +159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const next = { ...settingsRef.current, ...patch };
     settingsRef.current = next;
     setSettings(next);
-    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    await write(SETTINGS_KEY, next);
   }
 
   async function setTheme(t: "light" | "dark" | "system") {
@@ -167,6 +177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       callHistory, streak, lastPracticeDate, totalCalls, bestScore, theme,
       favoritePhraseIds, favoriteScriptIds,
       voiceMode: settings.voiceMode, voiceDebug: settings.voiceDebug, storageRecovered,
+      dismissStorageRecovered: () => setStorageRecovered(false),
       setVoiceMode, setVoiceDebug,
       addCallRecord, setTheme, toggleFavoritePhrase, toggleFavoriteScript,
     }}>

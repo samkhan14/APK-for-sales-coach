@@ -85,3 +85,19 @@ export function nextStreak(streak: number, lastDate: string | null, now = new Da
   if (lastDate === today) return { streak, lastDate: today };
   return { streak: lastDate === yesterday ? streak + 1 : 1, lastDate: today };
 }
+
+/** Backup key for a corrupt blob. One per key (overwritten), so old backups never pile up. */
+export function corruptBackupKey(key: string): string {
+  return `${key}.corrupt`;
+}
+
+/** Serializes async writes: each task starts only after the previous one settled,
+ *  so out-of-order completion can never let an older snapshot overwrite a newer one. */
+export function createWriteQueue() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return function enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = tail.then(task, task);
+    tail = run.catch(() => {});
+    return run;
+  };
+}
