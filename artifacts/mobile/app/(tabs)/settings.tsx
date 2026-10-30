@@ -32,7 +32,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
-  const { theme, setTheme } = useApp();
+  const { theme, setTheme, voiceMode, setVoiceMode, voiceDebug, setVoiceDebug } = useApp();
 
   const isDark = colors.isDark;
 
@@ -65,6 +65,51 @@ export default function SettingsScreen() {
               onValueChange={v => setTheme(v ? "dark" : "light")}
               trackColor={{ false: colors.border, true: colors.primary + "99" }}
               thumbColor={isDark ? colors.primary : "#fff"}
+              ios_backgroundColor={colors.border}
+            />
+          }
+        />
+      </View>
+
+      {/* Voice (beta feature flag, default OFF) */}
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>VOICE (BETA)</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <SettingRow
+          icon="mic"
+          label="Human voice calls"
+          subtitle={
+            voiceMode === "off" ? "Off — normal hold-to-talk calls"
+            : voiceMode === "live" ? "Gemini Live: talk freely, interrupt anytime"
+            : "Fallback: Whisper + Gemini voice"
+          }
+          right={null}
+        />
+        <View style={styles.segment}>
+          {(["off", "live", "chained"] as const).map(m => (
+            <Pressable
+              key={m}
+              onPress={() => setVoiceMode(m)}
+              style={[styles.segBtn, {
+                backgroundColor: voiceMode === m ? colors.primary : colors.background,
+                borderColor: voiceMode === m ? colors.primary : colors.border,
+              }]}
+            >
+              <Text style={{ color: voiceMode === m ? "#fff" : colors.foreground, fontWeight: "600", fontSize: 13 }}>
+                {m === "off" ? "Off" : m === "live" ? "Live" : "Fallback"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <SettingRow
+          icon="activity"
+          label="Show timing readout"
+          subtitle="Reply delay and interrupt speed on the call screen"
+          right={
+            <Switch
+              value={voiceDebug}
+              onValueChange={setVoiceDebug}
+              trackColor={{ false: colors.border, true: colors.primary + "99" }}
+              thumbColor={voiceDebug ? colors.primary : "#fff"}
               ios_backgroundColor={colors.border}
             />
           }
@@ -124,6 +169,8 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  segment: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   container: { flex: 1 },
   content: { paddingHorizontal: 16, gap: 4 },
   screenTitle: { fontSize: 26, fontWeight: "800", marginBottom: 20 },

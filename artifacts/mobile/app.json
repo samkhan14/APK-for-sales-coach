@@ -15,14 +15,21 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.syncognify.salescoach"
+      "bundleIdentifier": "com.syncognify.salescoach",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Sales Coach uses the microphone so you can talk out loud with the AI customer during voice practice calls."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0a0f1e"
       },
-      "package": "com.syncognify.salescoach"
+      "package": "com.syncognify.salescoach",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -30,7 +37,19 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-audio-api",
+        {
+          "iosMicrophonePermission": "Sales Coach uses the microphone so you can talk out loud with the AI customer during voice practice calls.",
+          "androidPermissions": [
+            "android.permission.RECORD_AUDIO",
+            "android.permission.MODIFY_AUDIO_SETTINGS"
+          ],
+          "androidForegroundService": false,
+          "iosBackgroundMode": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
