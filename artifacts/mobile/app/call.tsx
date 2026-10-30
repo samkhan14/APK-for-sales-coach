@@ -18,6 +18,7 @@ import { useColors } from "@/hooks/useColors";
 import { useCall, type Message } from "@/contexts/CallContext";
 import { useApp } from "@/contexts/AppContext";
 import { WaveformAnimation } from "@/components/WaveformAnimation";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { FeedbackCard } from "@/components/FeedbackCard";
 import { CallScriptPanel } from "@/components/CallScriptPanel";
 import type { CallFeedback } from "@/services/aiRouter";
@@ -326,6 +327,8 @@ export default function CallScreen() {
           )}
         </View>
       </View>
+
+      <OfflineBanner />
 
       {/* Status bar */}
       <View style={[styles.statusBar, { backgroundColor: colors.muted }]}>

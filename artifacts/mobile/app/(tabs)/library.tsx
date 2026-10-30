@@ -17,7 +17,8 @@ import { useTabBarHeight } from "@/hooks/useTabBarHeight";
 import { useApp } from "@/contexts/AppContext";
 import { PHRASE_CATEGORIES, type Phrase, type PhraseCategory } from "@/constants/phraseLibrary";
 import { speakText, stopSpeaking } from "@/services/speechService";
-import { translateToUrdu } from "@/services/translationService";
+import { translateToUrdu, translationErrorMessage } from "@/services/translationService";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 // ── Word Lookup Box ─────────────────────────────────────────────────────────
 function WordLookup() {
@@ -25,18 +26,18 @@ function WordLookup() {
   const [word, setWord] = useState("");
   const [urdu, setUrdu] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleTranslate() {
     if (!word.trim()) return;
     setLoading(true);
-    setError(false);
+    setError(null);
     setUrdu("");
     try {
       const result = await translateToUrdu(word.trim());
       setUrdu(result);
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(translationErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ function WordLookup() {
           <Text style={[styles.urduText, { color: colors.foreground }]}>{urdu}</Text>
         </View>
       ) : error ? (
-        <Text style={[styles.lookupError, { color: colors.destructive }]}>Translation failed. Check your connection.</Text>
+        <Text style={[styles.lookupError, { color: colors.destructive }]}>{error}</Text>
       ) : null}
     </View>
   );
@@ -118,17 +119,17 @@ function PhraseCard({
   const [expanded, setExpanded] = useState(false);
   const [urdu, setUrdu] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
 
   async function handleTranslate() {
     if (urdu) { setUrdu(null); return; } // toggle off
     setTranslating(true);
-    setTranslateError(false);
+    setTranslateError(null);
     try {
       const result = await translateToUrdu(phrase.text);
       setUrdu(result);
-    } catch {
-      setTranslateError(true);
+    } catch (e) {
+      setTranslateError(translationErrorMessage(e));
     } finally {
       setTranslating(false);
     }
@@ -175,7 +176,7 @@ function PhraseCard({
         )}
         {translateError && (
           <Text style={[styles.translateErr, { color: colors.destructive }]}>
-            Translation failed. Check connection.
+            {translateError}
           </Text>
         )}
 
@@ -267,8 +268,11 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={{ paddingTop: insets.top }}>
+        <OfflineBanner message="You're offline. Urdu translation and audio need internet." />
+      </View>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: 16, backgroundColor: colors.background }]}>
         <View style={styles.headerTop}>
           <View>
             <Text style={[styles.title, { color: colors.foreground }]}>Phrase Library</Text>
