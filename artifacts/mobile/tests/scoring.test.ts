@@ -40,5 +40,20 @@ async function endCallFlow(chat: Parameters<typeof scoreCall>[2]) {
   const ui6 = await endCallFlow(async () => ({ text: '{"confidenceScore":7,"fluencyScore":6,"effectivenessScore":5,"overallScore":6,"strengths":["a"],"weakPoints":["b"],"suggestedResponses":["c"],"closingStatement":"d","summary":"e"}', provider: "groq" }));
   assert.equal(ui6, "scored"); assert.equal(saved.length, 1);
   console.log("PASS valid JSON -> scored, saved scores:", saved.length);
+  // 7) strict body: fenced / prose-wrapped / extra keys rejected, nothing saved
+  const V = '{"confidenceScore":7,"fluencyScore":6,"effectivenessScore":5,"overallScore":6,"strengths":["a"],"weakPoints":["b"],"suggestedResponses":["c"],"closingStatement":"d","summary":"e"}';
+  const bad: [string, string][] = [
+    ["```json fence", "```json\n" + V + "\n```"],
+    ["```JSON fence", "```JSON\n" + V + "\n```"],
+    ["bare ``` fence", "```\n" + V + "\n```"],
+    ["prose-wrapped", "Here is the score: " + V + " Thanks!"],
+    ["extra key", V.slice(0, -1) + ',"extra":1}'],
+  ];
+  for (const [name, body] of bad) {
+    assert.equal(parseFeedback(body), null);
+    const ui = await endCallFlow(async () => ({ text: body, provider: "gemini" }));
+    assert.equal(ui, SCORING_FAILED_MESSAGE); assert.equal(saved.length, 1);
+    console.log("PASS " + name + " -> '" + ui + "', saved scores:", saved.length);
+  }
   console.log("ALL SCORING TESTS PASSED");
 })().catch(e => { console.error("FAIL", e); process.exit(1); });

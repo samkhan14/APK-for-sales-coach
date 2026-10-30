@@ -78,7 +78,7 @@ export default function SettingsScreen() {
             key={i}
             icon={p.configured ? "check-circle" : "x-circle"}
             label={p.name}
-            subtitle={p.configured ? "API key configured" : "Not configured"}
+            subtitle={p.configured ? "Proxy configured" : "Proxy not configured"}
             right={
               <View style={[styles.statusDot, { backgroundColor: p.configured ? "#22c55e" : "#ef4444" }]} />
             }

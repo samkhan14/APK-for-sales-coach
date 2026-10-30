@@ -41,11 +41,13 @@ function isStrArr(v: unknown, min: number): v is string[] {
   return Array.isArray(v) && v.length >= min && v.every(s => typeof s === "string" && s.trim().length > 0);
 }
 
+const FEEDBACK_KEYS = ["confidenceScore","fluencyScore","effectivenessScore","overallScore","strengths","weakPoints","suggestedResponses","closingStatement","summary"] as const;
+
 /** Strict parse + validation. Returns null on any problem (bad JSON counts as failure). */
 export function parseFeedback(raw: string): CallFeedback | null {
-  let text = raw.trim();
-  const fence = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  if (fence) text = fence[1]!.trim();
+  const text = raw.trim();
+  // Strict: body must be a bare JSON object. Fences / prose wrappers are rejected.
+  if (!text.startsWith("{") || !text.endsWith("}")) return null;
   let obj: unknown;
   try {
     obj = JSON.parse(text);
@@ -54,6 +56,8 @@ export function parseFeedback(raw: string): CallFeedback | null {
   }
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
   const o = obj as Record<string, unknown>;
+  const keys = Object.keys(o);
+  if (keys.length !== FEEDBACK_KEYS.length || !keys.every(k => (FEEDBACK_KEYS as readonly string[]).includes(k))) return null;
   if (!isScore(o.confidenceScore) || !isScore(o.fluencyScore) || !isScore(o.effectivenessScore) || !isScore(o.overallScore)) return null;
   if (!isStrArr(o.strengths, 1) || !isStrArr(o.weakPoints, 1) || !isStrArr(o.suggestedResponses, 1)) return null;
   if (typeof o.closingStatement !== "string" || typeof o.summary !== "string" || !o.summary.trim()) return null;

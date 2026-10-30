@@ -8,7 +8,7 @@ A mobile app that simulates realistic cold calling and sales conversations, help
 - `pnpm --filter @workspace/mobile run dev` — run the Expo mobile app
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- Required env: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` — AI provider keys
+- Required env (mobile): `EXPO_PUBLIC_PROXY_URL`, `EXPO_PUBLIC_APP_TOKEN` — the app talks only to the Cloudflare Worker proxy; provider keys live only as Worker secrets, never in the client
 
 ## Stack
 
@@ -16,7 +16,7 @@ A mobile app that simulates realistic cold calling and sales conversations, help
 - Mobile: Expo (React Native), expo-router, expo-speech
 - State: React Context + AsyncStorage (no backend DB for first build)
 - API: Express 5 (api-server artifact, minimal usage)
-- AI: Gemini 1.5 Flash → Groq llama-3.1-8b → OpenRouter llama-3.1-8b → Local DB fallback
+- AI: via Cloudflare Worker proxy (`POST /chat`, Bearer app token): gemini-3.5-flash → gemini-3.5-flash-lite → Groq openai/gpt-oss-20b. No local/canned fallback; failures show 'Scoring failed, try again'
 - Voice: expo-speech (TTS output), Web Speech API (STT on web)
 
 ## Where things live
@@ -34,8 +34,8 @@ A mobile app that simulates realistic cold calling and sales conversations, help
 ## Architecture decisions
 
 - **Frontend-only first build**: All persistence via AsyncStorage — no database provisioned. Call history, usage stats, and streaks stored locally on device.
-- **AI Router cascade**: Tries Gemini first (1500 req/day limit), falls back to Groq (14400/day), then OpenRouter (200/day), finally local scripted responses from the 55+ objections database.
-- **EXPO_PUBLIC_ env vars**: API keys are passed through the dev script as `EXPO_PUBLIC_GEMINI_API_KEY` etc. so Metro bundler can include them in the client bundle.
+- **AI proxy chain**: All AI calls go through `services/proxyClient.ts` to the Worker, which tries gemini-3.5-flash, then gemini-3.5-flash-lite, then Groq openai/gpt-oss-20b. No scripted fallback responses.
+- **EXPO_PUBLIC_ env vars**: Only `EXPO_PUBLIC_PROXY_URL` and `EXPO_PUBLIC_APP_TOKEN` are bundled. No provider API keys in the client bundle.
 - **Call state machine**: `idle → connecting → active ↔ ai_thinking ↔ ai_speaking → ended` managed in CallContext.
 - **No native STT module**: STT uses Web Speech API on web preview. On native (Expo Go), the text input button provides a fallback. Full native STT would require a custom dev build.
 
