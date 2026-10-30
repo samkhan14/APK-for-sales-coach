@@ -1,17 +1,16 @@
 // Voice spike controller (behind Settings > Voice mode, default OFF).
-// "live":    Gemini Live native audio over WebSocket (ephemeral token from our Worker). Primary.
+// "live":    Gemini Live native audio over WebSocket (connects with the user's own Gemini key). Primary.
 // "chained": local VAD -> Whisper STT -> Gemini text -> Gemini TTS per sentence. Fallback.
 // TODO(unverified on device): none of this has been run on a real phone yet.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { VoiceMode } from "@/services/storage";
-import type { ChatMessage } from "@/services/proxyClient";
-import { proxyChat } from "@/services/proxyClient";
+import { aiChat, type ChatMessage } from "@/services/directClient";
 import { LatencyTracker, type LatencyStats } from "@/services/voice/latency";
 import { EnergyVad } from "@/services/voice/vad";
 import { encodeWav, floatToPcm16Base64, rms } from "@/services/voice/pcm";
 import { GeminiLiveSession, openerInstruction } from "@/services/voice/geminiLive";
 import { ChainedTurnRunner } from "@/services/voice/chained";
-import { fetchLiveToken, synthesize, transcribe } from "@/services/voice/voiceProxy";
+import { getLiveCreds, synthesize, transcribe } from "@/services/voice/voiceDirect";
 
 export type VoicePhase = "idle" | "connecting" | "listening" | "user_speaking" | "ai_thinking" | "ai_speaking" | "error";
 
@@ -25,7 +24,7 @@ interface Options {
 
 const VOICE_NAME = "Kore"; // TODO: let the CEO pick (Puck, Charon, Kore, Fenrir, Aoede...) after listening.
 const VAD_SILENCE_MS = 600;
-const MAX_UTTERANCE_SEC = 18; // keeps /stt body under the Worker's 640 KB audio limit (16 kHz x 16-bit = 32 KB/s)
+const MAX_UTTERANCE_SEC = 18; // keeps each Groq STT upload small (16 kHz x 16-bit = 32 KB/s)
 
 export function useVoiceCall(opts: Options) {
   const [phase, setPhase] = useState<VoicePhase>("idle");
@@ -71,10 +70,10 @@ export function useVoiceCall(opts: Options) {
       // Live mode: get the token BEFORE creating any audio objects. On failure fall back to
       // chained mode once (no retry loop).
       let mode = optsRef.current.mode;
-      let tok: Awaited<ReturnType<typeof fetchLiveToken>> | null = null;
+      let tok: Awaited<ReturnType<typeof getLiveCreds>> | null = null;
       if (mode === "live") {
         try {
-          tok = await fetchLiveToken();
+          tok = await getLiveCreds();
         } catch {
           mode = "chained";
           setNotice("Live voice unavailable, switched to Fallback voice for this call.");
@@ -89,7 +88,7 @@ export function useVoiceCall(opts: Options) {
       if (mode === "live" && tok) {
         let awaitingFirstAudio = true;
         const session = new GeminiLiveSession({
-          token: tok.token,
+          apiKey: tok.apiKey,
           model: tok.model,
           systemInstruction: optsRef.current.systemPrompt,
           voiceName: VOICE_NAME,
@@ -132,7 +131,7 @@ export function useVoiceCall(opts: Options) {
       } else {
         const runner = new ChainedTurnRunner({
           transcribe: wav => transcribe(wav),
-          chat: async (messages, system) => (await proxyChat(messages, { system })).text,
+          chat: async (messages, system) => (await aiChat(messages, { system })).text,
           synthesize: s => synthesize(s, VOICE_NAME),
           play: async (audio, rate) => { setPhase("ai_speaking"); player.enqueue(audio, rate); await player.drain(); },
         });

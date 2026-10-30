@@ -1,10 +1,11 @@
 import { buildPrompt, type CallerMode } from "./callSetup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { CustomerPersonality, SalesScenario } from "@/constants/database";
-import { proxyChat, isProxyConfigured, type ChatMessage } from "./proxyClient";
+import { aiChat, type ChatMessage } from "./directClient";
+import { getKeys, hasAllKeys } from "./keys/keyStore";
 import { scoreCall, type CallFeedback, type ScoringResult } from "./scoring";
 
-// The provider name reported by the proxy ("gemini", "groq", ...). No keys or model names live in the app.
+// The provider that answered ("gemini", "groq", "openrouter"). Keys are the user's own, stored on device only.
 export type AIProvider = string;
 
 interface UsageStats {
@@ -54,7 +55,8 @@ async function recordUsage(provider: AIProvider | null): Promise<void> {
   await AsyncStorage.setItem(USAGE_KEY, JSON.stringify(stats));
 }
 
-export { isProxyConfigured };
+/** True when all three of the user's own keys are saved on this device. */
+export async function areKeysConfigured(): Promise<boolean> { return hasAllKeys(await getKeys()); }
 
 export async function buildSystemPrompt(
   scenario: SalesScenario,
@@ -71,7 +73,7 @@ export async function getAIResponse(
   systemPrompt: string
 ): Promise<{ text: string; provider: AIProvider }> {
   try {
-    const reply = await proxyChat(messages, { system: systemPrompt });
+    const reply = await aiChat(messages, { system: systemPrompt });
     await recordUsage(reply.provider);
     return reply;
   } catch (e) {

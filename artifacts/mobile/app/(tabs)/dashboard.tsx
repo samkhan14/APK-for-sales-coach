@@ -4,7 +4,8 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
-import { getUsageStats, isProxyConfigured } from "@/services/aiRouter";
+import { getUsageStats } from "@/services/aiRouter";
+import { useKeys } from "@/contexts/KeysContext";
 
 function getResetIn(): string {
   const now = new Date();
@@ -22,6 +23,7 @@ function cap(s: string): string {
 
 export default function DashboardScreen() {
   const colors = useColors();
+  const { gate: keysGate } = useKeys();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getUsageStats>> | null>(null);
@@ -85,7 +87,7 @@ export default function DashboardScreen() {
       ) : stats ? (
         <View style={[styles.chainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.chainName, { color: colors.foreground }]}>
-            Proxy: {isProxyConfigured() ? "configured" : "NOT configured (set EXPO_PUBLIC_PROXY_URL / EXPO_PUBLIC_APP_TOKEN)"}
+            Your keys: {keysGate.status === "ready" ? "all 3 set" : "missing (see Settings)"}
           </Text>
           <Text style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 6 }]}>
             Successful AI requests: {stats.requests} · Failed: {stats.failures}
@@ -96,7 +98,7 @@ export default function DashboardScreen() {
             </Text>
           ))}
           <Text style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 10 }]}>
-            Provider keys and fallback order are managed on the AI proxy, not in the app.
+            Order: Gemini first, then Groq, then OpenRouter (free model). Uses your own keys.
           </Text>
         </View>
       ) : null}

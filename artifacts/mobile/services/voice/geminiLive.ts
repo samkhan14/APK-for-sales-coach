@@ -1,10 +1,19 @@
-// Gemini Live (native audio) session over WebSocket using an ephemeral token.
+// Gemini Live (native audio) session over WebSocket using the user's own Gemini key (or an ephemeral token).
 // Message shapes follow the official Live API docs (checked 2026-10-30):
 //   setup -> setupComplete; realtimeInput.audio (PCM16 16 kHz); serverContent.modelTurn audio (PCM16 24 kHz);
 //   serverContent.interrupted = barge-in; input/outputTranscription; voiceActivity; goAway; sessionResumptionUpdate.
 // TODO(unverified on device): end-to-end behaviour, latency and echo handling have NOT been tested on a phone.
 export const LIVE_WS_URL =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
+/** API-key endpoint (bring-your-own-keys). Documented at ai.google.dev live-api get-started-websocket. */
+export const LIVE_WS_URL_KEY =
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+
+/** The user's own key (?key=) when given, else an ephemeral token (?access_token=). Never log this URL. */
+export function liveUrl(o: { apiKey?: string; token?: string }): string {
+  if (o.apiKey) return `${LIVE_WS_URL_KEY}?key=${encodeURIComponent(o.apiKey)}`;
+  return `${LIVE_WS_URL}?access_token=${encodeURIComponent(o.token ?? "")}`;
+}
 
 export interface WsLike {
   send(data: string): void;
@@ -30,7 +39,10 @@ export interface LiveCallbacks {
 }
 
 export interface LiveOptions {
-  token: string;
+  /** Ephemeral token (old proxy flow). */
+  token?: string;
+  /** User's own Gemini key (current flow). */
+  apiKey?: string;
   model: string;
   systemInstruction: string;
   voiceName?: string;
@@ -89,7 +101,7 @@ export class GeminiLiveSession {
   get isReady() { return this.ready; }
 
   connect(timeoutMs = 10000): Promise<void> {
-    const url = `${LIVE_WS_URL}?access_token=${encodeURIComponent(this.opts.token)}`;
+    const url = liveUrl(this.opts);
     const factory = this.opts.wsFactory ?? ((u: string) => {
       const ws = new WebSocket(u) as unknown as WsLike & { binaryType?: string };
       ws.binaryType = "arraybuffer";

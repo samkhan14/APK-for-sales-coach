@@ -3,7 +3,8 @@ import { LatencyTracker } from "@/services/voice/latency";
 import { EnergyVad, splitSentences } from "@/services/voice/vad";
 import { buildSetupMessage, GeminiLiveSession, LIVE_WS_URL, type WsLike } from "@/services/voice/geminiLive";
 import { ChainedTurnRunner } from "@/services/voice/chained";
-import { fetchLiveToken } from "@/services/voice/voiceProxy";
+import { getLiveCreds, synthesize, transcribe } from "@/services/voice/voiceDirect";
+import { liveUrl, LIVE_WS_URL_KEY } from "@/services/voice/geminiLive";
 
 describe("pcm", () => {
   test("base64 round-trip matches Node Buffer for all padding cases", () => {
@@ -117,11 +118,26 @@ describe("chained fallback (mocked STT/LLM/TTS)", () => {
   });
 });
 
-test("live token comes from our proxy with the app token, never a Google key", async () => {
-  const calls: any[] = [];
-  const fetchImpl = (async (url: string, init: any) => { calls.push({ url, init }); return { ok: true, json: async () => ({ token: "auth_tokens/x", model: "gemini-3.8-live", expiresAt: "z" }) }; }) as unknown as typeof fetch;
-  const t = await fetchLiveToken({ url: "https://proxy.example", token: "apptok", fetchImpl });
-  expect(t.token).toBe("auth_tokens/x");
-  expect(calls[0].url).toBe("https://proxy.example/live-token");
-  expect(calls[0].init.headers.Authorization).toBe("Bearer apptok");
+describe("direct voice calls use the user's own keys (no Worker)", () => {
+  const keys = { gemini: "test-gemini-placeholder-0000", groq: "test-groq-placeholder-00000000", openrouter: "x" };
+  test("Live connects to the API-key endpoint with the user's Gemini key", async () => {
+    const c = await getLiveCreds({ keys });
+    expect(c.apiKey).toBe(keys.gemini);
+    expect(liveUrl({ apiKey: c.apiKey })).toBe(`${LIVE_WS_URL_KEY}?key=${keys.gemini}`);
+  });
+  test("TTS goes to Google with x-goog-api-key and parses PCM rate", async () => {
+    const calls: any[] = [];
+    const fetchImpl = (async (url: string, init: any) => { calls.push({ url, init }); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { data: "AAAA", mimeType: "audio/L16;codec=pcm;rate=24000" } }] } }] }) }; }) as unknown as typeof fetch;
+    const a = await synthesize("hi", "Kore", { keys, fetchImpl });
+    expect(a).toEqual({ audio: "AAAA", sampleRate: 24000 });
+    expect(calls[0].url).toMatch(/^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/.+:generateContent$/);
+    expect(calls[0].init.headers["x-goog-api-key"]).toBe(keys.gemini);
+  });
+  test("STT goes to Groq with the user's Groq key", async () => {
+    const calls: any[] = [];
+    const fetchImpl = (async (url: string, init: any) => { calls.push({ url, init }); return { ok: true, json: async () => ({ text: " hello " }) }; }) as unknown as typeof fetch;
+    expect(await transcribe(new Uint8Array(64), { keys, fetchImpl })).toBe("hello");
+    expect(calls[0].url).toBe("https://api.groq.com/openai/v1/audio/transcriptions");
+    expect(calls[0].init.headers.Authorization).toBe(`Bearer ${keys.groq}`);
+  });
 });

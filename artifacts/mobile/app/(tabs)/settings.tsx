@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
-import { isProxyConfigured } from "@/services/aiRouter";
+import { KeyFields } from "@/components/KeyFields";
 import { useApp } from "@/contexts/AppContext";
 
 function SettingRow({
@@ -35,11 +35,6 @@ export default function SettingsScreen() {
   const { theme, setTheme, voiceMode, setVoiceMode, voiceDebug, setVoiceDebug } = useApp();
 
   const isDark = colors.isDark;
-
-  // Provider keys live on the proxy only; the app just needs the proxy URL + app token.
-  const providerStatus = [
-    { name: "AI Proxy", configured: isProxyConfigured() },
-  ];
 
   return (
     <ScrollView
@@ -116,20 +111,10 @@ export default function SettingsScreen() {
         />
       </View>
 
-      {/* AI Providers */}
-      <Text style={[styles.section, { color: colors.mutedForeground }]}>AI PROVIDERS</Text>
+      {/* Your API keys (stored on this device only). Clearing one returns to the setup screen. */}
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>YOUR API KEYS</Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {providerStatus.map((p, i) => (
-          <SettingRow
-            key={i}
-            icon={p.configured ? "check-circle" : "x-circle"}
-            label={p.name}
-            subtitle={p.configured ? "Proxy configured" : "Proxy not configured"}
-            right={
-              <View style={[styles.statusDot, { backgroundColor: p.configured ? "#22c55e" : "#ef4444" }]} />
-            }
-          />
-        ))}
+        <KeyFields />
       </View>
 
       {/* About */}
@@ -181,7 +166,6 @@ const styles = StyleSheet.create({
   rowContent: { flex: 1 },
   rowLabel: { fontSize: 15, fontWeight: "500" },
   rowSub: { fontSize: 12, marginTop: 1 },
-  statusDot: { width: 10, height: 10, borderRadius: 5 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, fontSize: 12, fontWeight: "600", overflow: "hidden" },
   footer: { textAlign: "center", fontSize: 13, marginTop: 24, marginBottom: 8, fontStyle: "italic" },
 });

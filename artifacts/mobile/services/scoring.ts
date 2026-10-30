@@ -1,4 +1,4 @@
-import { proxyChat, type ChatMessage, type ProxyReply } from "./proxyClient";
+import { aiChat, type ChatMessage, type AIReply as ProxyReply } from "./directClient";
 
 export interface CallFeedback {
   confidenceScore: number;
@@ -80,7 +80,7 @@ export type ChatFn = (messages: ChatMessage[], opts: { system?: string; json?: b
 export async function scoreCall(
   transcript: ChatMessage[],
   scenarioTitle: string,
-  chat: ChatFn = (m, o) => proxyChat(m, o)
+  chat: ChatFn = (m, o) => aiChat(m, o)
 ): Promise<ScoringResult> {
   const transcriptText = transcript
     .map(m => `${m.role === "user" ? "SALESPERSON" : "CUSTOMER"}: ${m.content}`)
