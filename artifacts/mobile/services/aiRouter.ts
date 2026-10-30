@@ -1,3 +1,4 @@
+import { buildPrompt, type CallerMode } from "./callSetup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { CustomerPersonality, SalesScenario } from "@/constants/database";
 import { proxyChat, isProxyConfigured, type ChatMessage } from "./proxyClient";
@@ -58,34 +59,10 @@ export { isProxyConfigured };
 export async function buildSystemPrompt(
   scenario: SalesScenario,
   personality: CustomerPersonality,
-  difficulty: "easy" | "medium" | "hard"
+  difficulty: "easy" | "medium" | "hard",
+  callerMode: CallerMode = "decision_maker"
 ): Promise<string> {
-  const difficultyInstructions = {
-    easy: "Be moderately open to the conversation. Give the caller reasonable chances to recover from mistakes.",
-    medium: "Be realistically skeptical. Push back on weak claims. Only engage deeply if they demonstrate genuine understanding.",
-    hard: "Be very tough. Challenge everything. Short, dismissive responses unless they say something genuinely impressive. High bar to convert."
-  };
-
-  return `${scenario.systemPrompt}
-
-PERSONALITY OVERLAY: ${personality.name} — ${personality.description}
-Tone: ${personality.tone}
-Response style: ${personality.responseStyle}
-Key traits: ${personality.traits.join(", ")}
-
-DIFFICULTY: ${difficulty} — ${difficultyInstructions[difficulty]}
-
-CRITICAL RULES:
-- You are a CUSTOMER being called, not an AI assistant. Never break character.
-- Keep responses SHORT — 1-3 sentences max, like a real phone call.
-- Sound human: use natural speech patterns, pauses, contractions.
-- React emotionally when appropriate: frustration, curiosity, skepticism, mild interest.
-- Do NOT use bullet points, lists, or formal language.
-- Do NOT offer solutions or be helpful — you are a potential buyer being pitched to.
-- React to what the caller actually says. If they make a good point, acknowledge it briefly.
-- Occasionally mention real business context (your team, your budget cycles, your current tools).
-- If they're impressive, you can show mild interest — "That's... actually interesting. Tell me more."
-- If they're weak, shut down quickly: "Look, I'm really busy, is there a point here?"`;
+  return buildPrompt(scenario, personality, difficulty, callerMode);
 }
 
 /** Throws on failure. There is no canned fallback: a failed call is never shown as an AI answer. */

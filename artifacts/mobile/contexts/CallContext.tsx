@@ -4,6 +4,7 @@ import { buildSystemPrompt, getAIResponse, generateCallFeedback, type AIProvider
 import { speakText, stopSpeaking } from "@/services/speechService";
 import { SCENARIOS, PERSONALITIES, type SalesScenario, type CustomerPersonality } from "@/constants/database";
 import { getSuggestionsForMessage } from "@/constants/phraseLibrary";
+import { buildOpening, type CallerMode } from "@/services/callSetup";
 
 export type CallStatus = "idle" | "connecting" | "active" | "ai_thinking" | "ai_speaking" | "user_speaking" | "ended";
 
@@ -25,7 +26,13 @@ interface CallState {
   feedback: CallFeedback | null;
   isGeneratingFeedback: boolean;
   suggestedResponses: string[];
-  startCall: (scenarioId: string, difficulty: "easy" | "medium" | "hard") => Promise<void>;
+  callerMode: CallerMode;
+  /** true when the call runs through the voice spike (Gemini Live / chained) instead of expo-speech. */
+  voiceCall: boolean;
+  systemPrompt: string;
+  startCall: (scenarioId: string, difficulty: "easy" | "medium" | "hard", opts?: { callerMode?: CallerMode; voice?: boolean }) => Promise<void>;
+  /** Voice mode: add a finished turn (from live transcription) to the transcript used for scoring. */
+  appendVoiceTurn: (role: "user" | "assistant", text: string) => void;
   sendUserMessage: (text: string) => Promise<void>;
   scoringFailed: boolean;
   endCall: () => Promise<CallFeedback | null>;
@@ -50,6 +57,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [suggestedResponses, setSuggestedResponses] = useState<string[]>([]);
   const [scoringFailed, setScoringFailed] = useState(false);
 
+  const [callerMode, setCallerMode] = useState<CallerMode>("decision_maker");
+  const [voiceCall, setVoiceCall] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("");
   const systemPromptRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -57,34 +67,56 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const clearSuggestions = useCallback(() => setSuggestedResponses([]), []);
 
-  const startCall = useCallback(async (scenarioId: string, diff: "easy" | "medium" | "hard") => {
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+  }, []);
+
+  const startCall = useCallback(async (
+    scenarioId: string,
+    diff: "easy" | "medium" | "hard",
+    opts: { callerMode?: CallerMode; voice?: boolean } = {},
+  ) => {
+    const mode = opts.callerMode ?? "decision_maker";
+    const voice = !!opts.voice;
     const scenario = SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0]!;
     const personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)]!;
 
     setCurrentScenario(scenario);
     setCurrentPersonality(personality);
     setDifficulty(diff);
+    setCallerMode(mode);
+    setVoiceCall(voice);
+    setDuration(0);
     setMessages([]);
     setFeedback(null);
     setSuggestedResponses([]);
     setStatus("connecting");
     messageCountRef.current = 0;
 
-    systemPromptRef.current = await buildSystemPrompt(scenario, personality, diff);
+    systemPromptRef.current = await buildSystemPrompt(scenario, personality, diff, mode);
+    setSystemPrompt(systemPromptRef.current);
+
+    // I18: opener comes from the scenario persona (never a "[Customer]" placeholder).
+    const opening = buildOpening(scenario, mode, diff);
+
+    if (voice) {
+      // Voice spike: the voice session speaks the opener itself; no expo-speech robot voice.
+      setMessages([{ id: Date.now().toString(), role: "assistant", content: opening, timestamp: Date.now() }]);
+      messageCountRef.current = 1;
+      setStatus("active");
+      startTimer();
+      return;
+    }
 
     setTimeout(() => {
       setStatus("ai_thinking");
     }, 1500);
 
     setTimeout(async () => {
-      const openingMessages = [
-        "Hello?",
-        "Yeah?",
-        "This is [Customer]. Who's this?",
-        "Hello, who am I speaking with?",
-        "Yeah, hello?",
-      ];
-      const opening = openingMessages[Math.floor(Math.random() * openingMessages.length)]!;
 
       const firstMsg: Message = {
         id: Date.now().toString(),
@@ -101,13 +133,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           // Show opener suggestions for the first message
           setSuggestedResponses(getSuggestionsForMessage(opening, true));
           setStatus("active");
-          startTimeRef.current = Date.now();
-          timerRef.current = setInterval(() => {
-            setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
-          }, 1000);
+          startTimer();
+        },
+        onError: () => {
+          setStatus("active");
+          startTimer();
         },
       });
     }, 2500);
+  }, [startTimer]);
+
+  const appendVoiceTurn = useCallback((role: "user" | "assistant", text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    messageCountRef.current += 1;
+    setMessages(prev => [...prev, { id: `${Date.now()}_${prev.length}`, role, content: t, timestamp: Date.now() }]);
   }, []);
 
   const sendUserMessage = useCallback(async (text: string) => {
@@ -204,6 +244,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCurrentProvider(null);
     setSuggestedResponses([]);
     setScoringFailed(false);
+    setVoiceCall(false);
+    setSystemPrompt("");
     messageCountRef.current = 0;
   }, []);
 
@@ -211,7 +253,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     <CallContext.Provider value={{
       status, messages, currentScenario, currentPersonality, difficulty,
       duration, currentProvider, feedback, isGeneratingFeedback,
-      suggestedResponses, scoringFailed,
+      suggestedResponses, scoringFailed, callerMode, voiceCall, systemPrompt, appendVoiceTurn,
       startCall, sendUserMessage, endCall, retryScoring: runScoring, resetCall, setStatus, clearSuggestions,
     }}>
       {children}
