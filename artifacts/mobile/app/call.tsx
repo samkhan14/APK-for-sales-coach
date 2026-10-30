@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useKeys } from "@/contexts/KeysContext";
+import { effectiveVoiceMode } from "@/services/keys/keyStore";
 import {
   ActivityIndicator,
   Alert,
@@ -163,7 +165,10 @@ export default function CallScreen() {
     sendUserMessage, endCall, retryScoring, scoringFailed, resetCall, setStatus, clearSuggestions,
     voiceCall, systemPrompt, appendVoiceTurn,
   } = useCall();
-  const { addCallRecord, voiceMode, voiceDebug } = useApp();
+  const { addCallRecord, voiceMode: chosenVoiceMode, voiceDebug } = useApp();
+  const { keys } = useKeys();
+  // Falls back to "off" when the keys this voice mode needs are missing (never crashes the call).
+  const voiceMode = effectiveVoiceMode(keys, chosenVoiceMode);
   // Voice spike is used only when the call was started with the flag on AND it is still on.
   const voiceActive = voiceCall && voiceMode !== "off";
   const voiceStopRef = useRef<(() => Promise<void>) | null>(null);

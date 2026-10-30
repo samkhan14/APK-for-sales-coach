@@ -1,10 +1,11 @@
 // One row per provider: masked current key, input, "Get a key" link, Test, Save, Clear.
+// Clearing an optional key (Gemini/Groq) keeps the app usable; clearing OpenRouter returns to setup.
 // A key is only saved when the user taps Save after a successful Test.
 import React, { useState } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useKeys } from "@/contexts/KeysContext";
-import { KEY_PROVIDERS, PROVIDER_INFO, checkKeyFormat, clearKey, maskKey, normalizeKey, saveKey, type KeyProvider } from "@/services/keys/keyStore";
+import { KEY_PROVIDERS, PROVIDER_INFO, isRequired, checkKeyFormat, clearKey, maskKey, normalizeKey, saveKey, type KeyProvider } from "@/services/keys/keyStore";
 import { testKey } from "@/services/directClient";
 
 function KeyRow({ p, allowClear }: { p: KeyProvider; allowClear: boolean }) {
@@ -45,7 +46,7 @@ function KeyRow({ p, allowClear }: { p: KeyProvider; allowClear: boolean }) {
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
       <View style={styles.head}>
-        <Text style={[styles.label, { color: colors.foreground }]}>{info.label} <Text style={{ color: "#ef4444" }}>*</Text></Text>
+        <Text style={[styles.label, { color: colors.foreground }]}>{info.label} {isRequired(p) ? <Text style={{ color: "#ef4444" }}>* required</Text> : <Text style={{ color: colors.mutedForeground, fontWeight: "400" }}>(optional)</Text>}</Text>
         <Pressable onPress={() => Linking.openURL(info.createUrl)} accessibilityRole="link">
           <Text style={[styles.link, { color: colors.primary }]}>Get a key ↗</Text>
         </Pressable>

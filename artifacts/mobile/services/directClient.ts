@@ -85,7 +85,8 @@ const CHAIN: { id: KeyProvider; run: typeof geminiChat }[] = [
   { id: "openrouter", run: openRouterChat },
 ];
 
-/** Gemini first, Groq fallback, OpenRouter (free model) last. Same contract as the old proxyChat. */
+/** Uses whichever keys exist, in order Gemini, Groq, OpenRouter (free model). Only OpenRouter is required,
+ *  so with just that key the chat runs on OpenRouter alone. Same contract as the old proxyChat. */
 export async function aiChat(messages: ChatMessage[], opts: ChatOpts = {}, cfg: DirectConfig = {}): Promise<AIReply> {
   const keys = cfg.keys ?? (await getKeys());
   const errors: string[] = [];

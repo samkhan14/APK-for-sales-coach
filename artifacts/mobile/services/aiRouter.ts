@@ -2,7 +2,7 @@ import { buildPrompt, type CallerMode } from "./callSetup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { CustomerPersonality, SalesScenario } from "@/constants/database";
 import { aiChat, type ChatMessage } from "./directClient";
-import { getKeys, hasAllKeys } from "./keys/keyStore";
+import { getKeys, hasRequiredKeys } from "./keys/keyStore";
 import { scoreCall, type CallFeedback, type ScoringResult } from "./scoring";
 
 // The provider that answered ("gemini", "groq", "openrouter"). Keys are the user's own, stored on device only.
@@ -55,8 +55,8 @@ async function recordUsage(provider: AIProvider | null): Promise<void> {
   await AsyncStorage.setItem(USAGE_KEY, JSON.stringify(stats));
 }
 
-/** True when all three of the user's own keys are saved on this device. */
-export async function areKeysConfigured(): Promise<boolean> { return hasAllKeys(await getKeys()); }
+/** True when the required (OpenRouter) key is saved on this device. */
+export async function areKeysConfigured(): Promise<boolean> { return hasRequiredKeys(await getKeys()); }
 
 export async function buildSystemPrompt(
   scenario: SalesScenario,

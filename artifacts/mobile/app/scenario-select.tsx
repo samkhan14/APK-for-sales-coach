@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useKeys } from "@/contexts/KeysContext";
+import { effectiveVoiceMode } from "@/services/keys/keyStore";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -31,7 +33,9 @@ export default function ScenarioSelectScreen() {
   const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]!.id);
   const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [callerMode, setCallerMode] = useState<CallerMode>("decision_maker");
-  const { voiceMode } = useApp();
+  const { voiceMode: chosenVoiceMode } = useApp();
+  const { keys } = useKeys();
+  const voiceMode = effectiveVoiceMode(keys, chosenVoiceMode);
   const [starting, setStarting] = useState(false);
   const [showScript, setShowScript] = useState(false);
 

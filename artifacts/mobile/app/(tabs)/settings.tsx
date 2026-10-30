@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
 import { KeyFields } from "@/components/KeyFields";
+import { useKeys } from "@/contexts/KeysContext";
+import { voiceAvailability } from "@/services/keys/keyStore";
 import { useApp } from "@/contexts/AppContext";
 
 function SettingRow({
@@ -35,6 +37,10 @@ export default function SettingsScreen() {
   const { theme, setTheme, voiceMode, setVoiceMode, voiceDebug, setVoiceDebug } = useApp();
 
   const isDark = colors.isDark;
+  const { keys } = useKeys();
+  const liveAv = voiceAvailability(keys, "live");
+  const fbAv = voiceAvailability(keys, "chained");
+  const curAv = voiceAvailability(keys, voiceMode);
 
   return (
     <ScrollView
@@ -73,18 +79,21 @@ export default function SettingsScreen() {
           icon="mic"
           label="Human voice calls"
           subtitle={
-            voiceMode === "off" ? "Off — normal hold-to-talk calls"
+            !curAv.ok ? `Off (${curAv.message})`
+            : voiceMode === "off" ? "Off — normal hold-to-talk calls"
             : voiceMode === "live" ? "Gemini Live: talk freely, interrupt anytime"
             : "Fallback: Whisper + Gemini voice"
           }
           right={null}
         />
         <View style={styles.segment}>
-          {(["off", "live", "chained"] as const).map(m => (
+          {(["off", "live", "chained"] as const).map(m => { const av = voiceAvailability(keys, m); return (
             <Pressable
               key={m}
-              onPress={() => setVoiceMode(m)}
-              style={[styles.segBtn, {
+              disabled={!av.ok}
+              accessibilityState={{ disabled: !av.ok }}
+              onPress={() => { if (av.ok) setVoiceMode(m); }}
+              style={[styles.segBtn, { opacity: av.ok ? 1 : 0.4,
                 backgroundColor: voiceMode === m ? colors.primary : colors.background,
                 borderColor: voiceMode === m ? colors.primary : colors.border,
               }]}
@@ -93,8 +102,10 @@ export default function SettingsScreen() {
                 {m === "off" ? "Off" : m === "live" ? "Live" : "Fallback"}
               </Text>
             </Pressable>
-          ))}
+          ); })}
         </View>
+        {!liveAv.ok && <Text style={{ color: colors.mutedForeground, fontSize: 12, paddingHorizontal: 14, paddingBottom: 4 }}>{liveAv.message}</Text>}
+        {!fbAv.ok && <Text style={{ color: colors.mutedForeground, fontSize: 12, paddingHorizontal: 14, paddingBottom: 8 }}>{fbAv.message}</Text>}
         <SettingRow
           icon="activity"
           label="Show timing readout"
@@ -111,7 +122,7 @@ export default function SettingsScreen() {
         />
       </View>
 
-      {/* Your API keys (stored on this device only). Clearing one returns to the setup screen. */}
+      {/* Your API keys (stored on this device only). Only OpenRouter is required; clearing it returns to the setup screen. */}
       <Text style={[styles.section, { color: colors.mutedForeground }]}>YOUR API KEYS</Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <KeyFields />

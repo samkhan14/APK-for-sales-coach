@@ -16,9 +16,9 @@ export interface ProviderInfo {
 }
 
 export const PROVIDER_INFO: Record<KeyProvider, ProviderInfo> = {
-  gemini: { id: "gemini", label: "Gemini (Google AI Studio)", createUrl: "https://aistudio.google.com/apikey", hint: "Chat, Live voice and voice output" },
-  groq: { id: "groq", label: "Groq", createUrl: "https://console.groq.com/keys", hint: "Chat fallback and speech-to-text" },
-  openrouter: { id: "openrouter", label: "OpenRouter", createUrl: "https://openrouter.ai/keys", hint: "Last chat fallback (free model)" },
+  gemini: { id: "gemini", label: "Gemini (Google AI Studio)", createUrl: "https://aistudio.google.com/apikey", hint: "Optional. Better chat, Live voice and voice output" },
+  groq: { id: "groq", label: "Groq", createUrl: "https://console.groq.com/keys", hint: "Optional. Chat backup and speech-to-text (Fallback voice)" },
+  openrouter: { id: "openrouter", label: "OpenRouter", createUrl: "https://openrouter.ai/keys", hint: "Required. Chat and scoring (free model)" },
 };
 
 export type Keys = Partial<Record<KeyProvider, string>>;
@@ -64,8 +64,27 @@ export function maskKey(k?: string | null): string {
   return `${k.slice(0, 4)}••••${k.slice(-4)}`;
 }
 
-export function missingProviders(k: Keys): KeyProvider[] { return KEY_PROVIDERS.filter(p => !k[p]); }
-export function hasAllKeys(k: Keys): boolean { return missingProviders(k).length === 0; }
+/** Only OpenRouter is required. Gemini and Groq are optional extras (better chat, voice). */
+export const REQUIRED_PROVIDERS: KeyProvider[] = ["openrouter"];
+export const isRequired = (p: KeyProvider) => REQUIRED_PROVIDERS.includes(p);
+/** Required providers that are still missing. */
+export function missingProviders(k: Keys): KeyProvider[] { return REQUIRED_PROVIDERS.filter(p => !k[p]); }
+export function hasRequiredKeys(k: Keys): boolean { return missingProviders(k).length === 0; }
+/** @deprecated name kept for callers; now means "required keys present". */
+export const hasAllKeys = hasRequiredKeys;
+
+export type VoiceModeId = "off" | "live" | "chained";
+export interface VoiceAvailability { ok: boolean; message: string | null }
+/** Live voice needs Gemini; Fallback voice needs Groq (speech-to-text) + Gemini (voice output). */
+export function voiceAvailability(k: Keys, mode: VoiceModeId): VoiceAvailability {
+  if (mode === "off") return { ok: true, message: null };
+  if (mode === "live") return k.gemini ? { ok: true, message: null } : { ok: false, message: "Add a Gemini key to use Live voice." };
+  if (k.gemini && k.groq) return { ok: true, message: null };
+  if (!k.gemini && !k.groq) return { ok: false, message: "Add Groq and Gemini keys to use Fallback voice." };
+  return { ok: false, message: k.groq ? "Add a Gemini key to use Fallback voice." : "Add a Groq key to use Fallback voice." };
+}
+/** The voice mode actually used: falls back to "off" if the needed keys are missing. */
+export function effectiveVoiceMode(k: Keys, mode: VoiceModeId): VoiceModeId { return voiceAvailability(k, mode).ok ? mode : "off"; }
 
 export async function loadKeys(): Promise<Keys> {
   const out: Keys = {};

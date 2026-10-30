@@ -87,7 +87,7 @@ export default function DashboardScreen() {
       ) : stats ? (
         <View style={[styles.chainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.chainName, { color: colors.foreground }]}>
-            Your keys: {keysGate.status === "ready" ? "all 3 set" : "missing (see Settings)"}
+            Your keys: {keysGate.status === "ready" ? "OpenRouter set" : "OpenRouter key missing (see Settings)"}
           </Text>
           <Text style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 6 }]}>
             Successful AI requests: {stats.requests} · Failed: {stats.failures}
