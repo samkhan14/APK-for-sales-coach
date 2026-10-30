@@ -1,144 +1,59 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { OBJECTIONS, type CustomerPersonality, type SalesScenario } from "@/constants/database";
+import type { CustomerPersonality, SalesScenario } from "@/constants/database";
+import { proxyChat, isProxyConfigured, type ChatMessage } from "./proxyClient";
+import { scoreCall, type CallFeedback, type ScoringResult } from "./scoring";
 
-export type AIProvider = "gemini" | "groq" | "openrouter" | "local";
+// The provider name reported by the proxy ("gemini", "groq", ...). No keys or model names live in the app.
+export type AIProvider = string;
 
 interface UsageStats {
-  gemini: { requests: number; lastReset: string };
-  groq: { requests: number; tokens: number; lastReset: string };
-  openrouter: { requests: number; lastReset: string };
-  currentProvider: AIProvider;
+  requests: number;
+  failures: number;
+  byProvider: Record<string, number>;
+  lastReset: string;
+  currentProvider: AIProvider | null;
   lastUpdated: string;
 }
 
-interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+type ConversationMessage = ChatMessage;
 
-const USAGE_KEY = "ai_usage_stats";
-const GEMINI_DAILY_LIMIT = 1500;
-const GROQ_DAILY_LIMIT = 14400;
-const OPENROUTER_DAILY_LIMIT = 200;
-
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || "";
-const OPENROUTER_API_KEY = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY || "";
+const USAGE_KEY = "ai_usage_stats_v2";
 
 function getTodayString(): string {
   return new Date().toISOString().split("T")[0]!;
 }
 
+function emptyStats(today: string): UsageStats {
+  return { requests: 0, failures: 0, byProvider: {}, lastReset: today, currentProvider: null, lastUpdated: new Date().toISOString() };
+}
+
 export async function getUsageStats(): Promise<UsageStats> {
   const today = getTodayString();
   const raw = await AsyncStorage.getItem(USAGE_KEY);
-  if (!raw) {
-    return {
-      gemini: { requests: 0, lastReset: today },
-      groq: { requests: 0, tokens: 0, lastReset: today },
-      openrouter: { requests: 0, lastReset: today },
-      currentProvider: "gemini",
-      lastUpdated: new Date().toISOString(),
-    };
+  if (!raw) return emptyStats(today);
+  try {
+    const stats = JSON.parse(raw) as UsageStats;
+    if (stats.lastReset !== today) return { ...emptyStats(today), currentProvider: stats.currentProvider };
+    return stats;
+  } catch {
+    return emptyStats(today);
   }
-  const stats: UsageStats = JSON.parse(raw);
-  // Reset daily counters
-  if (stats.gemini.lastReset !== today) stats.gemini = { requests: 0, lastReset: today };
-  if (stats.groq.lastReset !== today) stats.groq = { requests: 0, tokens: 0, lastReset: today };
-  if (stats.openrouter.lastReset !== today) stats.openrouter = { requests: 0, lastReset: today };
-  return stats;
 }
 
-async function saveUsageStats(stats: UsageStats): Promise<void> {
+async function recordUsage(provider: AIProvider | null): Promise<void> {
+  const stats = await getUsageStats();
+  if (provider) {
+    stats.requests++;
+    stats.byProvider[provider] = (stats.byProvider[provider] || 0) + 1;
+    stats.currentProvider = provider;
+  } else {
+    stats.failures++;
+  }
   stats.lastUpdated = new Date().toISOString();
   await AsyncStorage.setItem(USAGE_KEY, JSON.stringify(stats));
 }
 
-async function incrementUsage(provider: AIProvider, tokens?: number): Promise<void> {
-  const stats = await getUsageStats();
-  if (provider === "gemini") stats.gemini.requests++;
-  else if (provider === "groq") { stats.groq.requests++; stats.groq.tokens += tokens || 0; }
-  else if (provider === "openrouter") stats.openrouter.requests++;
-  stats.currentProvider = provider;
-  await saveUsageStats(stats);
-}
-
-async function callGemini(messages: ConversationMessage[], systemPrompt: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-  const contents = messages.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }]
-  }));
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents,
-      generationConfig: { temperature: 0.9, maxOutputTokens: 200 }
-    })
-  });
-  if (!resp.ok) throw new Error(`Gemini error: ${resp.status}`);
-  const data = await resp.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  if (!text) throw new Error("Empty Gemini response");
-  return text;
-}
-
-async function callGroq(messages: ConversationMessage[], systemPrompt: string): Promise<string> {
-  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-      max_tokens: 200,
-      temperature: 0.9
-    })
-  });
-  if (!resp.ok) throw new Error(`Groq error: ${resp.status}`);
-  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { total_tokens?: number } };
-  const text = data.choices?.[0]?.message?.content || "";
-  if (!text) throw new Error("Empty Groq response");
-  await incrementUsage("groq", data.usage?.total_tokens || 0);
-  return text;
-}
-
-async function callOpenRouter(messages: ConversationMessage[], systemPrompt: string): Promise<string> {
-  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://replit.com",
-      "X-Title": "AI Sales Practice"
-    },
-    body: JSON.stringify({
-      model: "meta-llama/llama-3.1-8b-instruct:free",
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-      max_tokens: 200,
-      temperature: 0.9
-    })
-  });
-  if (!resp.ok) throw new Error(`OpenRouter error: ${resp.status}`);
-  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const text = data.choices?.[0]?.message?.content || "";
-  if (!text) throw new Error("Empty OpenRouter response");
-  return text;
-}
-
-function getLocalResponse(userMessage: string): string {
-  const lower = userMessage.toLowerCase();
-  const matching = OBJECTIONS.find(obj =>
-    lower.includes("expensive") && obj.category === "price" ||
-    lower.includes("developer") && obj.category === "existing_solution" ||
-    lower.includes("interested") && obj.category === "timing" ||
-    lower.includes("email") && obj.category === "deflection" ||
-    lower.includes("think") && obj.category === "stall"
-  );
-  if (matching) return matching.aiResponse;
-  return "Look, I appreciate you calling, but I'm really tied up right now. Can you make it quick?";
-}
+export { isProxyConfigured };
 
 export async function buildSystemPrompt(
   scenario: SalesScenario,
@@ -173,104 +88,29 @@ CRITICAL RULES:
 - If they're weak, shut down quickly: "Look, I'm really busy, is there a point here?"`;
 }
 
+/** Throws on failure. There is no canned fallback: a failed call is never shown as an AI answer. */
 export async function getAIResponse(
   messages: ConversationMessage[],
   systemPrompt: string
 ): Promise<{ text: string; provider: AIProvider }> {
-  const stats = await getUsageStats();
-
-  // Try Gemini first
-  if (GEMINI_API_KEY && stats.gemini.requests < GEMINI_DAILY_LIMIT) {
-    try {
-      const text = await callGemini(messages, systemPrompt);
-      await incrementUsage("gemini");
-      return { text, provider: "gemini" };
-    } catch {
-      // Fall through
-    }
+  try {
+    const reply = await proxyChat(messages, { system: systemPrompt });
+    await recordUsage(reply.provider);
+    return reply;
+  } catch (e) {
+    await recordUsage(null);
+    throw e;
   }
-
-  // Try Groq
-  if (GROQ_API_KEY && stats.groq.requests < GROQ_DAILY_LIMIT) {
-    try {
-      const text = await callGroq(messages, systemPrompt);
-      return { text, provider: "groq" };
-    } catch {
-      // Fall through
-    }
-  }
-
-  // Try OpenRouter
-  if (OPENROUTER_API_KEY && stats.openrouter.requests < OPENROUTER_DAILY_LIMIT) {
-    try {
-      const text = await callOpenRouter(messages, systemPrompt);
-      await incrementUsage("openrouter");
-      return { text, provider: "openrouter" };
-    } catch {
-      // Fall through
-    }
-  }
-
-  // Local fallback
-  const lastUserMessage = messages[messages.length - 1]?.content || "";
-  return { text: getLocalResponse(lastUserMessage), provider: "local" };
 }
 
+/** Returns { ok: false } on any failure; never returns a fabricated score. */
 export async function generateCallFeedback(
   transcript: ConversationMessage[],
   scenario: SalesScenario
-): Promise<CallFeedback> {
-  const systemPrompt = `You are an expert sales coach analyzing a cold call practice session. 
-The user was pitching: ${scenario.title}.
-Analyze the conversation and return ONLY valid JSON in exactly this format, no other text:
-{
-  "confidenceScore": <1-10>,
-  "fluencyScore": <1-10>,
-  "effectivenessScore": <1-10>,
-  "overallScore": <1-10>,
-  "strengths": ["strength1", "strength2"],
-  "weakPoints": ["weakness1", "weakness2"],
-  "suggestedResponses": ["better response to use next time"],
-  "closingStatement": "A better closing line they could have used",
-  "summary": "2-3 sentence overall assessment"
-}`;
-
-  const transcriptText = transcript.map(m => `${m.role === "user" ? "SALESPERSON" : "CUSTOMER"}: ${m.content}`).join("\n");
-  const messages: ConversationMessage[] = [{ role: "user", content: `Analyze this call:\n\n${transcriptText}` }];
-
-  try {
-    const { text } = await getAIResponse(messages, systemPrompt);
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]) as CallFeedback;
-    }
-  } catch {
-    // Fall through to default
-  }
-
-  return {
-    confidenceScore: 6,
-    fluencyScore: 6,
-    effectivenessScore: 5,
-    overallScore: 6,
-    strengths: ["Initiated the conversation", "Stayed engaged throughout"],
-    weakPoints: ["Could sharpen the opening pitch", "More specific value propositions needed"],
-    suggestedResponses: ["Try asking a discovery question earlier in the call"],
-    closingStatement: "I'd love 15 minutes to show you exactly how this applies to your business — when works for you this week?",
-    summary: "Good effort on this practice session. Focus on asking better discovery questions to understand the customer's specific pain points before pitching solutions."
-  };
+): Promise<ScoringResult> {
+  const result = await scoreCall(transcript, scenario.title);
+  await recordUsage(result.ok ? result.provider : null);
+  return result;
 }
 
-export interface CallFeedback {
-  confidenceScore: number;
-  fluencyScore: number;
-  effectivenessScore: number;
-  overallScore: number;
-  strengths: string[];
-  weakPoints: string[];
-  suggestedResponses: string[];
-  closingStatement: string;
-  summary: string;
-}
-
-export { GEMINI_DAILY_LIMIT, GROQ_DAILY_LIMIT, OPENROUTER_DAILY_LIMIT };
+export type { CallFeedback, ScoringResult };

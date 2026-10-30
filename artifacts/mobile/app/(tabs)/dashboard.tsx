@@ -4,43 +4,20 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
-import { getUsageStats, GEMINI_DAILY_LIMIT, GROQ_DAILY_LIMIT, OPENROUTER_DAILY_LIMIT, type AIProvider } from "@/services/aiRouter";
-import { UsageCard } from "@/components/UsageCard";
+import { getUsageStats, isProxyConfigured } from "@/services/aiRouter";
 
 function getResetIn(): string {
   const now = new Date();
   const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
+  midnight.setUTCHours(24, 0, 0, 0);
   const diffMs = midnight.getTime() - now.getTime();
   const diffH = Math.floor(diffMs / 3600000);
   const diffM = Math.floor((diffMs % 3600000) / 60000);
   return diffH > 0 ? `${diffH}h ${diffM}m` : `${diffM}m`;
 }
 
-function getStatus(used: number, limit: number): "active" | "warning" | "exhausted" | "standby" {
-  const pct = used / limit;
-  if (pct >= 1) return "exhausted";
-  if (pct >= 0.8) return "warning";
-  if (used === 0) return "standby";
-  return "active";
-}
-
-function getRecommendation(
-  geminiUsed: number, groqUsed: number, openrouterUsed: number,
-  current: AIProvider
-): string {
-  if (current === "local") return "All APIs exhausted — using offline scripted responses.";
-  const geminiPct = geminiUsed / GEMINI_DAILY_LIMIT;
-  const groqPct = groqUsed / GROQ_DAILY_LIMIT;
-  const openrouterPct = openrouterUsed / OPENROUTER_DAILY_LIMIT;
-  const best = [
-    { name: "Gemini", pct: geminiPct },
-    { name: "Groq", pct: groqPct },
-    { name: "OpenRouter", pct: openrouterPct },
-  ].sort((a, b) => a.pct - b.pct)[0]!;
-  if (best.pct < 0.2) return `${best.name} is currently least loaded — optimal for speed.`;
-  if (best.pct < 0.5) return `${best.name} has the most capacity remaining.`;
-  return "All providers are moderately loaded. Responses may be slower.";
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function DashboardScreen() {
@@ -95,88 +72,33 @@ export default function DashboardScreen() {
         <View style={[styles.currentBanner, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
           <Feather name="zap" size={16} color={colors.primary} />
           <Text style={[styles.currentText, { color: colors.primary }]}>
-            Currently using:{" "}
-            <Text style={{ fontWeight: "800" }}>
-              {stats.currentProvider === "local"
-                ? "Offline (Local DB)"
-                : stats.currentProvider.charAt(0).toUpperCase() + stats.currentProvider.slice(1)}
-            </Text>
+            Last answered by:{" "}
+            <Text style={{ fontWeight: "800" }}>{stats.currentProvider ? cap(stats.currentProvider) : "—"}</Text>
           </Text>
         </View>
       )}
 
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Provider Status</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Today (resets in {getResetIn()})</Text>
 
       {loading && !stats ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
       ) : stats ? (
-        <>
-          <UsageCard
-            provider="Google Gemini"
-            used={stats.gemini.requests}
-            limit={GEMINI_DAILY_LIMIT}
-            status={getStatus(stats.gemini.requests, GEMINI_DAILY_LIMIT)}
-            isCurrent={stats.currentProvider === "gemini"}
-            resetIn={getResetIn()}
-            subtitle="gemini-1.5-flash · Primary AI"
-          />
-          <UsageCard
-            provider="Groq"
-            used={stats.groq.requests}
-            limit={GROQ_DAILY_LIMIT}
-            status={getStatus(stats.groq.requests, GROQ_DAILY_LIMIT)}
-            isCurrent={stats.currentProvider === "groq"}
-            resetIn={getResetIn()}
-            subtitle={`llama-3.1-8b-instant · ${stats.groq.tokens.toLocaleString()} tokens used`}
-          />
-          <UsageCard
-            provider="OpenRouter"
-            used={stats.openrouter.requests}
-            limit={OPENROUTER_DAILY_LIMIT}
-            status={getStatus(stats.openrouter.requests, OPENROUTER_DAILY_LIMIT)}
-            isCurrent={stats.currentProvider === "openrouter"}
-            resetIn={getResetIn()}
-            subtitle="llama-3.1-8b-instruct:free · Backup"
-          />
-
-          <View style={[styles.recommendCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.recommendHeader}>
-              <Feather name="cpu" size={16} color={colors.primary} />
-              <Text style={[styles.recommendTitle, { color: colors.foreground }]}>Smart Recommendation</Text>
-            </View>
-            <Text style={[styles.recommendText, { color: colors.mutedForeground }]}>
-              {getRecommendation(stats.gemini.requests, stats.groq.requests, stats.openrouter.requests, stats.currentProvider)}
+        <View style={[styles.chainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.chainName, { color: colors.foreground }]}>
+            Proxy: {isProxyConfigured() ? "configured" : "NOT configured (set EXPO_PUBLIC_PROXY_URL / EXPO_PUBLIC_APP_TOKEN)"}
+          </Text>
+          <Text style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 6 }]}>
+            Successful AI requests: {stats.requests} · Failed: {stats.failures}
+          </Text>
+          {Object.entries(stats.byProvider).map(([name, n]) => (
+            <Text key={name} style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 4 }]}>
+              {cap(name)}: {n}
             </Text>
-          </View>
-
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Fallback Chain</Text>
-          <View style={[styles.chainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {[
-              { name: "Gemini API", sub: "Primary — fastest, best quality", icon: "star" },
-              { name: "Groq API", sub: "Fallback — ultra-fast inference", icon: "zap" },
-              { name: "OpenRouter", sub: "Backup — multiple model access", icon: "shield" },
-              { name: "Local DB", sub: "Offline — scripted responses", icon: "database" },
-            ].map((item, i, arr) => (
-              <View key={i}>
-                <View style={styles.chainItem}>
-                  <View style={[styles.chainNum, { backgroundColor: colors.primary + "20" }]}>
-                    <Text style={[styles.chainNumText, { color: colors.primary }]}>{i + 1}</Text>
-                  </View>
-                  <Feather name={item.icon as any} size={16} color={colors.mutedForeground} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.chainName, { color: colors.foreground }]}>{item.name}</Text>
-                    <Text style={[styles.chainSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
-                  </View>
-                </View>
-                {i < arr.length - 1 && (
-                  <View style={styles.chainArrow}>
-                    <Feather name="arrow-down" size={12} color={colors.mutedForeground} />
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        </>
+          ))}
+          <Text style={[styles.chainSub, { color: colors.mutedForeground, marginTop: 10 }]}>
+            Provider keys and fallback order are managed on the AI proxy, not in the app.
+          </Text>
+        </View>
       ) : null}
     </ScrollView>
   );

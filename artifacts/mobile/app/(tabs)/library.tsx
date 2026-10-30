@@ -138,7 +138,6 @@ function PhraseCard({
     <Pressable
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
       onPress={() => setExpanded(e => !e)}
-      activeOpacity={0.9}
     >
       <View style={[styles.quotebar, { backgroundColor: categoryColor }]} />
       <View style={styles.cardContent}>
