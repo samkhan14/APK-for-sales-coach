@@ -1,3 +1,4 @@
+import { OBJECTIONS, PERSONALITIES, SCENARIOS } from "@/constants/database";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -97,19 +98,19 @@ export default function SettingsScreen() {
         />
         <SettingRow
           icon="database"
-          label="55+ Objections"
+          label={`${OBJECTIONS.length} Objections`}
           subtitle="Local knowledge base"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />
         <SettingRow
           icon="layers"
-          label="8 Scenarios"
-          subtitle="Web dev, SaaS, AI, CRM..."
+          label={`${SCENARIOS.length} Scenarios`}
+          subtitle="Web dev, AI, CRM + US local business packs"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />
         <SettingRow
           icon="users"
-          label="7 Personalities"
+          label={`${PERSONALITIES.length} Personalities`}
           subtitle="Diverse customer types"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />

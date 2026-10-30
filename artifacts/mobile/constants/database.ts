@@ -15,6 +15,11 @@ export interface SalesScenario {
   difficulty: "easy" | "medium" | "hard";
   icon: string;
   systemPrompt: string;
+  /** I18: name the AI customer uses in its opening line. */
+  customerName?: string;
+  businessName?: string;
+  /** F7 gatekeeper mode: receptionist who answers first. */
+  receptionistName?: string;
 }
 
 export interface CustomerPersonality {
@@ -602,3 +607,8 @@ export const PERSONALITIES: CustomerPersonality[] = [
     traits: ["gets lost in jargon", "responds to analogies", "trusts gut feeling", "just wants it to work"]
   },
 ];
+
+// F4/F6: US local-business packs are appended to the built-in lists.
+import { US_OBJECTIONS, US_SCENARIOS } from "./usPacks";
+SCENARIOS.push(...US_SCENARIOS);
+OBJECTIONS.push(...US_OBJECTIONS);
