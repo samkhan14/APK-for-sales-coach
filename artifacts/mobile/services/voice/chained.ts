@@ -2,7 +2,7 @@
 //   mic -> local VAD -> WAV -> /stt (Groq Whisper) -> /chat (Gemini text) -> sentence split -> /tts per sentence.
 // TTS for sentence 2+ is requested while sentence 1 is playing, so the first words come out fast.
 // All I/O is injected so the pipeline can be unit-tested with mocks.
-import type { ChatMessage } from "@/services/proxyClient";
+import type { ChatMessage } from "@/services/directClient";
 import { splitSentences } from "./vad";
 
 export interface ChainedDeps {

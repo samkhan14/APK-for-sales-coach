@@ -6,7 +6,7 @@ import { useColors } from "@/hooks/useColors";
 import { useVoiceCall, type VoicePhase } from "@/hooks/useVoiceCall";
 import { formatMs } from "@/services/voice/latency";
 import type { VoiceMode } from "@/services/storage";
-import type { ChatMessage } from "@/services/proxyClient";
+import type { ChatMessage } from "@/services/directClient";
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
   idle: "Tap to start talking",

@@ -1,15 +1,20 @@
 // Direct AI client (bring-your-own-keys). The app talks straight to Google, Groq and OpenRouter with the
-// user's own keys from secure storage. The old Cloudflare Worker proxy (services/proxyClient.ts) is kept in
-// the repo but is no longer used by the app.
+// user's own keys from secure storage.
 // Error messages never include keys or request URLs that carry keys.
-import type { ChatMessage, ProxyReply } from "./proxyClient";
 import { getKeys, type KeyProvider, type Keys } from "./keys/keyStore";
 import {
   GEMINI_BASE, GEMINI_CHAT_MODELS, GROQ_BASE, GROQ_CHAT_MODEL, OPENROUTER_BASE, OPENROUTER_CHAT_MODEL,
 } from "./models";
 
-export type { ChatMessage };
-export type AIReply = ProxyReply;
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AIReply {
+  text: string;
+  provider: string;
+}
 
 export class AIError extends Error {
   status?: number;

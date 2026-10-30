@@ -1,5 +1,4 @@
 // Voice calls made directly with the user's own keys (replaces the Worker's /live-token, /stt, /tts).
-// services/voice/voiceProxy.ts is kept in the repo but no longer used.
 import { requireKey } from "@/services/keys/keyStore";
 import { AIError, type DirectConfig } from "@/services/directClient";
 import { GEMINI_BASE, GEMINI_LIVE_MODEL, GEMINI_TTS_MODEL, GROQ_BASE, GROQ_STT_MODEL } from "@/services/models";
