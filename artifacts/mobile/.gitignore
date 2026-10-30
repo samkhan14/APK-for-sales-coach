@@ -39,3 +39,7 @@ yarn-error.*
 .vercel
 
 .env
+
+# all env files except the example
+.env*
+!.env.example

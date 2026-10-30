@@ -1,3 +1,4 @@
+import { Alert } from "react-native";
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import { buildSystemPrompt, getAIResponse, generateCallFeedback, type AIProvider, type CallFeedback } from "@/services/aiRouter";
 import { speakText, stopSpeaking } from "@/services/speechService";
@@ -26,7 +27,9 @@ interface CallState {
   suggestedResponses: string[];
   startCall: (scenarioId: string, difficulty: "easy" | "medium" | "hard") => Promise<void>;
   sendUserMessage: (text: string) => Promise<void>;
+  scoringFailed: boolean;
   endCall: () => Promise<CallFeedback | null>;
+  retryScoring: () => Promise<CallFeedback | null>;
   resetCall: () => void;
   setStatus: (s: CallStatus) => void;
   clearSuggestions: () => void;
@@ -45,6 +48,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [feedback, setFeedback] = useState<CallFeedback | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [suggestedResponses, setSuggestedResponses] = useState<string[]>([]);
+  const [scoringFailed, setScoringFailed] = useState(false);
 
   const systemPromptRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -152,30 +156,41 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         },
       });
     } catch {
+      // No canned fallback: tell the user the AI did not answer instead of faking a reply.
+      Alert.alert("AI unavailable", "The customer AI did not respond. Check your connection and try again.");
       setStatus("active");
     }
   }, [status, messages]);
+
+  // Returns feedback on success, null when scoring failed (scoringFailed=true) or there was nothing to score.
+  const runScoring = useCallback(async (): Promise<CallFeedback | null> => {
+    if (messages.length < 2 || !currentScenario) return null;
+    setIsGeneratingFeedback(true);
+    setScoringFailed(false);
+    try {
+      const result = await generateCallFeedback(
+        messages.map(m => ({ role: m.role, content: m.content })),
+        currentScenario
+      );
+      if (!result.ok) {
+        setFeedback(null);
+        setScoringFailed(true);
+        return null;
+      }
+      setFeedback(result.feedback);
+      return result.feedback;
+    } finally {
+      setIsGeneratingFeedback(false);
+    }
+  }, [messages, currentScenario]);
 
   const endCall = useCallback(async (): Promise<CallFeedback | null> => {
     if (timerRef.current) clearInterval(timerRef.current);
     await stopSpeaking();
     setSuggestedResponses([]);
     setStatus("ended");
-
-    if (messages.length < 2 || !currentScenario) return null;
-
-    setIsGeneratingFeedback(true);
-    try {
-      const fb = await generateCallFeedback(
-        messages.map(m => ({ role: m.role, content: m.content })),
-        currentScenario
-      );
-      setFeedback(fb);
-      return fb;
-    } finally {
-      setIsGeneratingFeedback(false);
-    }
-  }, [messages, currentScenario]);
+    return runScoring();
+  }, [runScoring]);
 
   const resetCall = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -188,6 +203,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setFeedback(null);
     setCurrentProvider(null);
     setSuggestedResponses([]);
+    setScoringFailed(false);
     messageCountRef.current = 0;
   }, []);
 
@@ -195,8 +211,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     <CallContext.Provider value={{
       status, messages, currentScenario, currentPersonality, difficulty,
       duration, currentProvider, feedback, isGeneratingFeedback,
-      suggestedResponses,
-      startCall, sendUserMessage, endCall, resetCall, setStatus, clearSuggestions,
+      suggestedResponses, scoringFailed,
+      startCall, sendUserMessage, endCall, retryScoring: runScoring, resetCall, setStatus, clearSuggestions,
     }}>
       {children}
     </CallContext.Provider>

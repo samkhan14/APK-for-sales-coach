@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
+import { isProxyConfigured } from "@/services/aiRouter";
 import { useApp } from "@/contexts/AppContext";
 
 function SettingRow({
@@ -34,10 +35,9 @@ export default function SettingsScreen() {
 
   const isDark = colors.isDark;
 
+  // Provider keys live on the proxy only; the app just needs the proxy URL + app token.
   const providerStatus = [
-    { name: "Gemini", configured: !!process.env.EXPO_PUBLIC_GEMINI_API_KEY },
-    { name: "Groq", configured: !!process.env.EXPO_PUBLIC_GROQ_API_KEY },
-    { name: "OpenRouter", configured: !!process.env.EXPO_PUBLIC_OPENROUTER_API_KEY },
+    { name: "AI Proxy", configured: isProxyConfigured() },
   ];
 
   return (

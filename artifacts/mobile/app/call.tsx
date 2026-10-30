@@ -20,6 +20,8 @@ import { useApp } from "@/contexts/AppContext";
 import { WaveformAnimation } from "@/components/WaveformAnimation";
 import { FeedbackCard } from "@/components/FeedbackCard";
 import { CallScriptPanel } from "@/components/CallScriptPanel";
+import type { CallFeedback } from "@/services/aiRouter";
+import { SCORING_FAILED_MESSAGE } from "@/services/scoring";
 
 function useVoiceRecording(onResult: (text: string) => void) {
   const [isRecording, setIsRecording] = useState(false);
@@ -156,7 +158,7 @@ export default function CallScreen() {
     status, messages, currentScenario, currentPersonality,
     duration, currentProvider, feedback, isGeneratingFeedback,
     suggestedResponses,
-    sendUserMessage, endCall, resetCall, setStatus, clearSuggestions,
+    sendUserMessage, endCall, retryScoring, scoringFailed, resetCall, setStatus, clearSuggestions,
   } = useCall();
   const { addCallRecord } = useApp();
   const [phase, setPhase] = useState<CallPhase>("call");
@@ -191,36 +193,63 @@ export default function CallScreen() {
         onPress: async () => {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
           const fb = await endCall();
-          if (fb) {
-            setLocalFeedback(fb);
-            const record = {
-              id: Date.now().toString(),
-              scenarioId: currentScenario?.id || "",
-              scenarioTitle: currentScenario?.title || "Practice Call",
-              personalityName: currentPersonality?.name || "Customer",
-              date: new Date().toISOString(),
-              duration,
-              overallScore: fb.overallScore,
-              confidenceScore: fb.confidenceScore,
-              fluencyScore: fb.fluencyScore,
-              effectivenessScore: fb.effectivenessScore,
-              summary: fb.summary,
-              transcript: messages.map(m => ({ role: m.role, content: m.content })),
-            };
-            await addCallRecord(record);
-            setPhase("feedback");
-          } else {
-            resetCall();
-            router.back();
-          }
+          await handleScored(fb);
         },
       },
     ]);
   }
 
+  // Saves a call record ONLY when real, validated feedback exists. A failed scoring saves nothing.
+  async function handleScored(fb: CallFeedback | null) {
+    if (fb) {
+      setLocalFeedback(fb);
+      const record = {
+        id: Date.now().toString(),
+        scenarioId: currentScenario?.id || "",
+        scenarioTitle: currentScenario?.title || "Practice Call",
+        personalityName: currentPersonality?.name || "Customer",
+        date: new Date().toISOString(),
+        duration,
+        overallScore: fb.overallScore,
+        confidenceScore: fb.confidenceScore,
+        fluencyScore: fb.fluencyScore,
+        effectivenessScore: fb.effectivenessScore,
+        summary: fb.summary,
+        transcript: messages.map(m => ({ role: m.role, content: m.content })),
+      };
+      await addCallRecord(record);
+      setPhase("feedback");
+    } else if (messages.length < 2 || !currentScenario) {
+      // Nothing to score (too short). When scoring failed, the "Scoring failed" screen is shown instead.
+      resetCall();
+      router.back();
+    }
+  }
+
   function handleDone() {
     resetCall();
     router.replace("/(tabs)");
+  }
+
+  // — Scoring failed: explicit state, no score shown or saved —
+  if (scoringFailed && !isGeneratingFeedback) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.loadingTitle, { color: colors.foreground }]}>{SCORING_FAILED_MESSAGE}</Text>
+        <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+          The AI coach could not score this call. No score was saved.
+        </Text>
+        <Pressable
+          onPress={async () => handleScored(await retryScoring())}
+          style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "700" }}>Try again</Text>
+        </Pressable>
+        <Pressable onPress={handleDone} style={{ marginTop: 12, padding: 12 }}>
+          <Text style={{ color: colors.mutedForeground }}>Discard call</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   // — Generating feedback —

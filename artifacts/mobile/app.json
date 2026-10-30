@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "AI Voice Sales Practice",
-    "slug": "mobile",
+    "name": "Sales Coach",
+    "slug": "sales-coach",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "salescoach",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,24 +14,21 @@
       "backgroundColor": "#0a0f1e"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.syncognify.salescoach"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0a0f1e"
-      }
+      },
+      "package": "com.syncognify.salescoach"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://replit.com/"
-        }
-      ],
+      "expo-router",
       "expo-font",
       "expo-web-browser"
     ],
