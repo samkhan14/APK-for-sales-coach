@@ -16,12 +16,18 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { CallProvider } from "@/contexts/CallContext";
+import { KeysProvider, useKeys } from "@/contexts/KeysContext";
+import { KeySetupScreen } from "@/components/KeySetupScreen";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
+  // Setup gate: nothing else renders until all of the user's own keys are saved.
+  const { gate } = useKeys();
+  if (gate.status === "loading") return null;
+  if (gate.status === "setup") return <KeySetupScreen />;
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -54,9 +60,11 @@ export default function RootLayout() {
           <GestureHandlerRootView>
             <KeyboardProvider>
               <AppProvider>
-                <CallProvider>
-                  <RootLayoutNav />
-                </CallProvider>
+                <KeysProvider>
+                  <CallProvider>
+                    <RootLayoutNav />
+                  </CallProvider>
+                </KeysProvider>
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

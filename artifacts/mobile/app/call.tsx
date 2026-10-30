@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useKeys } from "@/contexts/KeysContext";
+import { effectiveVoiceMode } from "@/services/keys/keyStore";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +20,8 @@ import { useColors } from "@/hooks/useColors";
 import { useCall, type Message } from "@/contexts/CallContext";
 import { useApp } from "@/contexts/AppContext";
 import { WaveformAnimation } from "@/components/WaveformAnimation";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { FeedbackCard } from "@/components/FeedbackCard";
 import { CallScriptPanel } from "@/components/CallScriptPanel";
 import type { CallFeedback } from "@/services/aiRouter";
@@ -159,8 +163,19 @@ export default function CallScreen() {
     duration, currentProvider, feedback, isGeneratingFeedback,
     suggestedResponses,
     sendUserMessage, endCall, retryScoring, scoringFailed, resetCall, setStatus, clearSuggestions,
+    voiceCall, systemPrompt, appendVoiceTurn,
   } = useCall();
-  const { addCallRecord } = useApp();
+  const { addCallRecord, voiceMode: chosenVoiceMode, voiceDebug } = useApp();
+  const { keys } = useKeys();
+  // Falls back to "off" when the keys this voice mode needs are missing (never crashes the call).
+  const voiceMode = effectiveVoiceMode(keys, chosenVoiceMode);
+  // Voice spike is used only when the call was started with the flag on AND it is still on.
+  const voiceActive = voiceCall && voiceMode !== "off";
+  const voiceStopRef = useRef<(() => Promise<void>) | null>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const getHistory = useCallback(() => messagesRef.current.map(m => ({ role: m.role, content: m.content })), []);
+  const registerVoiceStop = useCallback((fn: () => Promise<void>) => { voiceStopRef.current = fn; }, []);
   const [phase, setPhase] = useState<CallPhase>("call");
   const [localFeedback, setLocalFeedback] = useState(feedback);
   const [showScript, setShowScript] = useState(false);
@@ -192,6 +207,7 @@ export default function CallScreen() {
         style: "destructive",
         onPress: async () => {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          await voiceStopRef.current?.().catch(() => {});
           const fb = await endCall();
           await handleScored(fb);
         },
@@ -327,6 +343,8 @@ export default function CallScreen() {
         </View>
       </View>
 
+      <OfflineBanner />
+
       {/* Status bar */}
       <View style={[styles.statusBar, { backgroundColor: colors.muted }]}>
         <WaveformAnimation isActive={isAIBusy} barCount={5} color={isAIBusy ? colors.primary : colors.mutedForeground} />
@@ -358,8 +376,20 @@ export default function CallScreen() {
         }
       />
 
+      {voiceCall && voiceMode !== "off" && (
+        <VoiceCallPanel
+          mode={voiceMode}
+          systemPrompt={systemPrompt}
+          opener={messages[0]?.content ?? "Hello?"}
+          getHistory={getHistory}
+          onTurn={appendVoiceTurn}
+          debug={voiceDebug}
+          registerStop={registerVoiceStop}
+        />
+      )}
+
       {/* Suggested responses strip */}
-      {showSuggestions && (
+      {showSuggestions && !voiceActive && (
         <SuggestionStrip
           suggestions={suggestedResponses}
           onSelect={async (text) => {
@@ -386,8 +416,8 @@ export default function CallScreen() {
           <Feather name="phone-off" size={20} color={colors.callRed} />
         </Pressable>
 
-        {/* Mic — hold to speak */}
-        <Pressable
+        {/* Mic — hold to speak (text mode only; voice mode uses the panel above) */}
+        {!voiceActive && <Pressable
           style={({ pressed }) => [
             styles.micBtn,
             {
@@ -405,7 +435,7 @@ export default function CallScreen() {
           disabled={!canInteract && !isRecording}
         >
           <Feather name={isRecording ? "mic" : "mic-off"} size={28} color="#fff" />
-        </Pressable>
+        </Pressable>}
 
         {/* Script helper */}
         <Pressable

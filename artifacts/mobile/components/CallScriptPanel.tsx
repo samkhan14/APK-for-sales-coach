@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { US_OBJECTIONS } from "@/constants/usPacks";
 import {
   OPENING_LINES,
   DISCOVERY_QUESTIONS,
@@ -154,7 +155,10 @@ export function CallScriptPanel({ visible, onClose }: Props) {
               <Text style={[styles.sectionNote, { color: colors.mutedForeground }]}>
                 When a customer pushes back, use these responses. Acknowledge first, redirect second.
               </Text>
-              {OBJECTION_SCRIPTS.map((obj, i) => (
+              {[
+                ...US_OBJECTIONS.map(o => ({ trigger: `US: "${o.customerMessage}"`, response: `${o.aiResponse} ${o.followUp}` })),
+                ...OBJECTION_SCRIPTS,
+              ].map((obj, i) => (
                 <View key={i} style={[styles.objCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <View style={[styles.objTrigger, { backgroundColor: "#f59e0b20" }]}>
                     <Feather name="alert-circle" size={13} color="#f59e0b" />

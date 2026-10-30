@@ -31,7 +31,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
-  const { streak, totalCalls, bestScore, callHistory } = useApp();
+  const { streak, totalCalls, bestScore, callHistory, storageRecovered, dismissStorageRecovered } = useApp();
 
   const recentCall = callHistory[0];
   const avgScore = callHistory.length > 0
@@ -47,6 +47,19 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      {storageRecovered ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={dismissStorageRecovered}
+          style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, marginBottom: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        >
+          <Feather name="alert-triangle" size={16} color="#f59e0b" />
+          <Text style={{ flex: 1, color: colors.foreground, fontSize: 13 }}>
+            Some saved data was unreadable and was reset. A backup copy was kept. Tap to dismiss.
+          </Text>
+          <Feather name="x" size={16} color={colors.mutedForeground} />
+        </Pressable>
+      ) : null}
       {/* Header */}
       <View style={styles.header}>
         <View>

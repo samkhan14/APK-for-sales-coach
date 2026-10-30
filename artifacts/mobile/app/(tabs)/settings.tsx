@@ -1,10 +1,13 @@
+import { OBJECTIONS, PERSONALITIES, SCENARIOS } from "@/constants/database";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTabBarHeight } from "@/hooks/useTabBarHeight";
-import { isProxyConfigured } from "@/services/aiRouter";
+import { KeyFields } from "@/components/KeyFields";
+import { useKeys } from "@/contexts/KeysContext";
+import { voiceAvailability } from "@/services/keys/keyStore";
 import { useApp } from "@/contexts/AppContext";
 
 function SettingRow({
@@ -31,14 +34,13 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
-  const { theme, setTheme } = useApp();
+  const { theme, setTheme, voiceMode, setVoiceMode, voiceDebug, setVoiceDebug } = useApp();
 
   const isDark = colors.isDark;
-
-  // Provider keys live on the proxy only; the app just needs the proxy URL + app token.
-  const providerStatus = [
-    { name: "AI Proxy", configured: isProxyConfigured() },
-  ];
+  const { keys } = useKeys();
+  const liveAv = voiceAvailability(keys, "live");
+  const fbAv = voiceAvailability(keys, "chained");
+  const curAv = voiceAvailability(keys, voiceMode);
 
   return (
     <ScrollView
@@ -70,20 +72,60 @@ export default function SettingsScreen() {
         />
       </View>
 
-      {/* AI Providers */}
-      <Text style={[styles.section, { color: colors.mutedForeground }]}>AI PROVIDERS</Text>
+      {/* Voice (beta feature flag, default OFF) */}
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>VOICE (BETA)</Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {providerStatus.map((p, i) => (
-          <SettingRow
-            key={i}
-            icon={p.configured ? "check-circle" : "x-circle"}
-            label={p.name}
-            subtitle={p.configured ? "Proxy configured" : "Proxy not configured"}
-            right={
-              <View style={[styles.statusDot, { backgroundColor: p.configured ? "#22c55e" : "#ef4444" }]} />
-            }
-          />
-        ))}
+        <SettingRow
+          icon="mic"
+          label="Human voice calls"
+          subtitle={
+            !curAv.ok ? `Off (${curAv.message})`
+            : voiceMode === "off" ? "Off — normal hold-to-talk calls"
+            : voiceMode === "live" ? "Gemini Live: talk freely, interrupt anytime"
+            : "Fallback: Whisper + Gemini voice"
+          }
+          right={null}
+        />
+        <View style={styles.segment}>
+          {(["off", "live", "chained"] as const).map(m => { const av = voiceAvailability(keys, m); return (
+            <Pressable
+              key={m}
+              disabled={!av.ok}
+              accessibilityState={{ disabled: !av.ok }}
+              onPress={() => { if (av.ok) setVoiceMode(m); }}
+              style={[styles.segBtn, { opacity: av.ok ? 1 : 0.4,
+                backgroundColor: voiceMode === m ? colors.primary : colors.background,
+                borderColor: voiceMode === m ? colors.primary : colors.border,
+              }]}
+            >
+              <Text style={{ color: voiceMode === m ? "#fff" : colors.foreground, fontWeight: "600", fontSize: 13 }}>
+                {m === "off" ? "Off" : m === "live" ? "Live" : "Fallback"}
+              </Text>
+            </Pressable>
+          ); })}
+        </View>
+        {!liveAv.ok && <Text style={{ color: colors.mutedForeground, fontSize: 12, paddingHorizontal: 14, paddingBottom: 4 }}>{liveAv.message}</Text>}
+        {!fbAv.ok && <Text style={{ color: colors.mutedForeground, fontSize: 12, paddingHorizontal: 14, paddingBottom: 8 }}>{fbAv.message}</Text>}
+        <SettingRow
+          icon="activity"
+          label="Show timing readout"
+          subtitle="Reply delay and interrupt speed on the call screen"
+          right={
+            <Switch
+              value={voiceDebug}
+              onValueChange={setVoiceDebug}
+              trackColor={{ false: colors.border, true: colors.primary + "99" }}
+              thumbColor={voiceDebug ? colors.primary : "#fff"}
+              ios_backgroundColor={colors.border}
+            />
+          }
+        />
+      </View>
+
+      {/* Your API keys (stored on this device only). Only OpenRouter is required; clearing it returns to the setup screen. */}
+      <Text style={[styles.section, { color: colors.mutedForeground }]}>YOUR API KEYS</Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyFields />
       </View>
 
       {/* About */}
@@ -97,19 +139,19 @@ export default function SettingsScreen() {
         />
         <SettingRow
           icon="database"
-          label="55+ Objections"
+          label={`${OBJECTIONS.length} Objections`}
           subtitle="Local knowledge base"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />
         <SettingRow
           icon="layers"
-          label="8 Scenarios"
-          subtitle="Web dev, SaaS, AI, CRM..."
+          label={`${SCENARIOS.length} Scenarios`}
+          subtitle="Web dev, AI, CRM + US local business packs"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />
         <SettingRow
           icon="users"
-          label="7 Personalities"
+          label={`${PERSONALITIES.length} Personalities`}
           subtitle="Diverse customer types"
           right={<Text style={[styles.badge, { backgroundColor: colors.accent, color: colors.primary }]}>Built-in</Text>}
         />
@@ -123,6 +165,8 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  segment: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   container: { flex: 1 },
   content: { paddingHorizontal: 16, gap: 4 },
   screenTitle: { fontSize: 26, fontWeight: "800", marginBottom: 20 },
@@ -133,7 +177,6 @@ const styles = StyleSheet.create({
   rowContent: { flex: 1 },
   rowLabel: { fontSize: 15, fontWeight: "500" },
   rowSub: { fontSize: 12, marginTop: 1 },
-  statusDot: { width: 10, height: 10, borderRadius: 5 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, fontSize: 12, fontWeight: "600", overflow: "hidden" },
   footer: { textAlign: "center", fontSize: 13, marginTop: 24, marginBottom: 8, fontStyle: "italic" },
 });

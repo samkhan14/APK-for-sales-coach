@@ -1,6 +1,6 @@
-// Run: npx tsx tests/scoring.test.ts  (no network; proxy failure is mocked)
+// Run: npx tsx tests/scoring.test.ts  (no network; AI failures are mocked)
 import { strict as assert } from "node:assert";
-import { proxyChat, ProxyError } from "../services/proxyClient";
+import { AIError } from "../services/directClient";
 import { scoreCall, parseFeedback, SCORING_FAILED_MESSAGE } from "../services/scoring";
 
 const transcript = [
@@ -15,14 +15,12 @@ async function endCallFlow(chat: Parameters<typeof scoreCall>[2]) {
 }
 
 (async () => {
-  // 1) proxy 502 via mocked fetch
-  const fetch502 = (async () => new Response(JSON.stringify({ error: "upstream_failed" }), { status: 502 })) as typeof fetch;
-  await assert.rejects(proxyChat(transcript, {}, { url: "https://x", token: "t", fetchImpl: fetch502 }), ProxyError);
-  const ui1 = await endCallFlow((m, o) => proxyChat(m, o, { url: "https://x", token: "t", fetchImpl: fetch502 }));
+  // 1) upstream 502 (mocked chat rejects)
+  const ui1 = await endCallFlow(async () => { throw new AIError("upstream_failed", 502); });
   assert.equal(ui1, "Scoring failed, try again"); assert.equal(saved.length, 0);
-  console.log("PASS proxy 502 -> '" + ui1 + "', saved scores:", saved.length);
+  console.log("PASS upstream 502 -> '" + ui1 + "', saved scores:", saved.length);
   // 2) network error
-  const ui2 = await endCallFlow(async () => { throw new ProxyError("Network error"); });
+  const ui2 = await endCallFlow(async () => { throw new AIError("Network error"); });
   assert.equal(ui2, SCORING_FAILED_MESSAGE); assert.equal(saved.length, 0);
   console.log("PASS network error -> '" + ui2 + "', saved scores:", saved.length);
   // 3) bad JSON counts as failure
@@ -32,10 +30,10 @@ async function endCallFlow(chat: Parameters<typeof scoreCall>[2]) {
   // 4) out-of-range score rejected
   assert.equal(parseFeedback('{"confidenceScore":11,"fluencyScore":5,"effectivenessScore":5,"overallScore":5,"strengths":["a"],"weakPoints":["b"],"suggestedResponses":["c"],"closingStatement":"d","summary":"e"}'), null);
   console.log("PASS out-of-range score rejected");
-  // 5) no proxy config -> failure, not fake score
-  const r5 = await scoreCall(transcript, "Test", (m, o) => proxyChat(m, o, { url: "", token: "" }));
+  // 5) no keys configured -> failure, not fake score
+  const r5 = await scoreCall(transcript, "Test", async () => { throw new AIError("No AI key saved"); });
   assert.equal(r5.ok, false);
-  console.log("PASS unconfigured proxy -> ok=false");
+  console.log("PASS no keys -> ok=false");
   // 6) valid JSON accepted
   const ui6 = await endCallFlow(async () => ({ text: '{"confidenceScore":7,"fluencyScore":6,"effectivenessScore":5,"overallScore":6,"strengths":["a"],"weakPoints":["b"],"suggestedResponses":["c"],"closingStatement":"d","summary":"e"}', provider: "groq" }));
   assert.equal(ui6, "scored"); assert.equal(saved.length, 1);

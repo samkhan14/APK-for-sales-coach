@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useKeys } from "@/contexts/KeysContext";
+import { effectiveVoiceMode } from "@/services/keys/keyStore";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -9,6 +11,13 @@ import { SCENARIOS } from "@/constants/database";
 import { ScenarioCard } from "@/components/ScenarioCard";
 import { useCall } from "@/contexts/CallContext";
 import { CallScriptPanel } from "@/components/CallScriptPanel";
+import { useApp } from "@/contexts/AppContext";
+import type { CallerMode } from "@/services/callSetup";
+
+const CALLER_MODES = [
+  { value: "decision_maker" as const, label: "Owner answers", desc: "You reach the decision maker directly" },
+  { value: "gatekeeper" as const, label: "Receptionist first", desc: "Get past the front desk, then pitch the owner" },
+];
 
 const DIFFICULTIES = [
   { value: "easy" as const, label: "Easy", desc: "Forgiving client, more chances to recover", color: "#22c55e" },
@@ -23,6 +32,10 @@ export default function ScenarioSelectScreen() {
   const { startCall } = useCall();
   const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]!.id);
   const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [callerMode, setCallerMode] = useState<CallerMode>("decision_maker");
+  const { voiceMode: chosenVoiceMode } = useApp();
+  const { keys } = useKeys();
+  const voiceMode = effectiveVoiceMode(keys, chosenVoiceMode);
   const [starting, setStarting] = useState(false);
   const [showScript, setShowScript] = useState(false);
 
@@ -30,7 +43,7 @@ export default function ScenarioSelectScreen() {
     if (starting) return;
     setStarting(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await startCall(selectedScenario, selectedDifficulty);
+    await startCall(selectedScenario, selectedDifficulty, { callerMode, voice: voiceMode !== "off" });
     router.push("/call");
   }
 
@@ -102,6 +115,32 @@ export default function ScenarioSelectScreen() {
         </View>
         <Text style={[styles.diffDesc, { color: colors.mutedForeground }]}>
           {DIFFICULTIES.find(d => d.value === selectedDifficulty)?.desc}
+        </Text>
+
+        {/* F7: who picks up */}
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Who answers</Text>
+        <View style={styles.difficultyRow}>
+          {CALLER_MODES.map(m => (
+            <Pressable
+              key={m.value}
+              style={[
+                styles.diffBtn,
+                {
+                  backgroundColor: callerMode === m.value ? colors.primary + "20" : colors.card,
+                  borderColor: callerMode === m.value ? colors.primary : colors.border,
+                  flex: 1,
+                },
+              ]}
+              onPress={() => setCallerMode(m.value)}
+            >
+              <Text style={[styles.diffLabel, { color: callerMode === m.value ? colors.primary : colors.foreground }]}>
+                {m.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={[styles.diffDesc, { color: colors.mutedForeground }]}>
+          {CALLER_MODES.find(m => m.value === callerMode)?.desc}
         </Text>
 
         {/* Scenarios */}
