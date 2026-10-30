@@ -7,7 +7,8 @@
     "dev": "pnpm exec expo start",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.0",
@@ -37,6 +38,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "0.81.5",
+    "react-native-audio-api": "0.11.7",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-keyboard-controller": "1.18.5",
     "react-native-reanimated": "~4.1.1",
@@ -52,10 +54,23 @@
     "@babel/core": "^7.25.2",
     "@expo/cli": "54.0.23",
     "@expo/ngrok": "^4.1.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "catalog:",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
+    "jest": "^30.5.2",
+    "jest-expo": "~54.0.18",
     "typescript": "~5.9.2"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/__tests__/**/*.test.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dist/"
+    ]
   }
 }
